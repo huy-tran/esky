@@ -1,6 +1,6 @@
 name: Release
 
-# Push a tag like v0.9.0 to build the Windows installers and open a draft release.
+# Push a tag like v0.1.0 to build the Windows installers and open a draft release.
 on:
   push:
     tags: ['v*']

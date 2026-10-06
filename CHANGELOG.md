@@ -4,7 +4,7 @@ All notable changes to Esky are listed here. The format follows [Keep a Changelo
 
 ## Unreleased
 
-## 0.9.0 - 2026-10-07
+## 0.1.0 - 2026-10-07
 
 First release.
 

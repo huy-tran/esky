@@ -24,7 +24,7 @@ export interface DictEntry {
 }
 
 const API = 'https://en.wiktionary.org/api/rest_v1/page'
-const HEADERS = { 'Api-User-Agent': 'Esky/0.9 (desktop launcher)' }
+const HEADERS = { 'Api-User-Agent': 'Esky/0.1 (desktop launcher)' }
 
 /** HTML fragment → plain text. Examples keep the headword in **bold** markers. */
 function text(html: string, keepBold = false) {
