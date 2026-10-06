@@ -6,12 +6,14 @@
 
 export type ClaudeMode = 'chat' | 'quick'
 
+/** Which system prompt to use: 'chat', 'check' (the sign-in test) or a Quick AI command id. */
+export type SystemId = string
+
 export interface ClaudeRequest {
   mode: ClaudeMode
   /** The user's message (sent on stdin). */
   prompt: string
-  /** System prompt for this run. */
-  system: string
+  system: SystemId
   /** Continue an earlier chat. */
   sessionId?: string
 }
@@ -41,21 +43,47 @@ export interface ClaudeStatus {
   error?: string
 }
 
-/** Command-line arguments for a lean, non-interactive run. The prompt itself goes on stdin. */
-export function claudeArgs(req: ClaudeRequest): string[] {
+const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** The system prompt text for an id, or undefined for an unknown id. */
+export function systemPrompt(id: SystemId): string | undefined {
+  if (id === 'chat') return CHAT_SYSTEM
+  if (id === 'check') return CHECK_SYSTEM
+  return Object.hasOwn(QUICK_SYSTEM, id) ? QUICK_SYSTEM[id] : undefined
+}
+
+/**
+ * Accept only well-formed requests: a known mode and system prompt, and a session id that is a UUID.
+ * The command line is built from these values, so nothing else may reach it.
+ */
+export function checkRequest(x: unknown): ClaudeRequest {
+  const r = (x ?? {}) as Record<string, unknown>
+  if (r.mode !== 'chat' && r.mode !== 'quick') throw new Error('Unknown mode')
+  if (typeof r.prompt !== 'string' || !r.prompt.trim()) throw new Error('Empty prompt')
+  if (typeof r.system !== 'string' || !systemPrompt(r.system)) throw new Error('Unknown system prompt')
+  if (r.sessionId != null && (typeof r.sessionId !== 'string' || !SESSION_ID.test(r.sessionId))) throw new Error('Invalid session id')
+  return { mode: r.mode, prompt: r.prompt, system: r.system, sessionId: (r.sessionId as string | undefined) || undefined }
+}
+
+/**
+ * Command-line arguments for a lean, non-interactive run. The prompt itself goes on stdin.
+ * Keep in step with `claude_args` in src-tauri/src/lib.rs, which builds the same list for the desktop app.
+ */
+export function claudeArgs(input: ClaudeRequest): string[] {
+  const req = checkRequest(input)
   return [
     '-p',
     '--output-format', 'stream-json',
     '--verbose',
     '--include-partial-messages',
-    '--system-prompt', req.system,
+    `--system-prompt=${systemPrompt(req.system)}`,
     // No tools, MCP servers, skills or user settings/hooks: a plain conversation.
     '--tools', '',
     '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}',
     '--setting-sources', '',
     '--disable-slash-commands',
     ...(req.mode === 'quick' ? ['--no-session-persistence'] : []),
-    ...(req.sessionId ? ['--resume', req.sessionId] : [])
+    ...(req.sessionId ? [`--resume=${req.sessionId}`] : [])
   ]
 }
 
@@ -119,6 +147,9 @@ export function parseAuthStatus(out: string): Partial<ClaudeStatus> {
 // ---------- prompts ----------
 
 export const CHAT_SYSTEM = 'You are the AI assistant inside Esky, a keyboard launcher for Windows used by a web developer. Be concise and practical. Format answers in Markdown; put code in fenced code blocks with a language tag.'
+
+/** Used by "Check again" to confirm Claude Code answers. */
+export const CHECK_SYSTEM = 'Reply with the single word: ok'
 
 export const QUICK_SYSTEM: Record<string, string> = {
   grammar: 'Fix the grammar, spelling and punctuation of the text the user sends. Keep their meaning, tone and language. Reply with only the corrected text: no preamble, no quotes, no explanation.',

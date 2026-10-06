@@ -80,16 +80,67 @@ fn claude_command(args: &[String]) -> Command {
     cmd
 }
 
+fn is_uuid(s: &str) -> bool {
+    let parts: Vec<&str> = s.split('-').collect();
+    parts.iter().map(|p| p.len()).eq([8, 4, 4, 4, 12])
+        && parts.iter().all(|p| p.chars().all(|c| c.is_ascii_hexdigit()))
+}
+
+/// The command line for a lean, non-interactive run: no tools, MCP servers, skills or user
+/// settings. Built here from checked values only; keep in step with `claudeArgs` in app/utils/claude.ts.
+fn claude_args(mode: &str, system: &str, session_id: Option<&str>) -> Result<Vec<String>, String> {
+    if mode != "chat" && mode != "quick" {
+        return Err("Unknown mode".into());
+    }
+    let mut args: Vec<String> = [
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--verbose",
+        "--include-partial-messages",
+    ]
+    .map(String::from)
+    .to_vec();
+    args.push(format!("--system-prompt={system}"));
+    args.extend(
+        [
+            "--tools",
+            "",
+            "--strict-mcp-config",
+            "--mcp-config",
+            r#"{"mcpServers":{}}"#,
+            "--setting-sources",
+            "",
+            "--disable-slash-commands",
+        ]
+        .map(String::from),
+    );
+    if mode == "quick" {
+        args.push("--no-session-persistence".into());
+    }
+    if let Some(id) = session_id {
+        if !is_uuid(id) {
+            return Err("Invalid session id".into());
+        }
+        args.push(format!("--resume={id}"));
+    }
+    Ok(args)
+}
+
 /// Start one Claude Code turn. Output lines arrive on `on_line`; the last one is an `esky_exit` record.
 #[tauri::command]
 fn claude_run(
     app: AppHandle,
     run_id: u32,
-    args: Vec<String>,
+    mode: String,
+    system: String,
+    session_id: Option<String>,
     prompt: String,
-    cwd: String,
     on_line: Channel<String>,
 ) -> Result<(), String> {
+    let args = claude_args(&mode, &system, session_id.as_deref())?;
+    // Its own folder, so Esky's chats don't mix with project sessions.
+    let cwd = app.path().home_dir().map_err(|e| e.to_string())?.join(".esky").join("chats");
     std::fs::create_dir_all(&cwd).map_err(|e| e.to_string())?;
     let mut child = claude_command(&args)
         .current_dir(&cwd)
@@ -144,9 +195,14 @@ struct ExecOutput {
     stderr: String,
 }
 
-/// Run a short Claude Code command, e.g. `--version` or `auth status`.
+/// `claude --version` (`what` = "version") or `claude auth status` ("auth"). Nothing else.
 #[tauri::command]
-fn claude_exec(args: Vec<String>) -> Result<ExecOutput, String> {
+fn claude_info(what: String) -> Result<ExecOutput, String> {
+    let args: Vec<String> = match what.as_str() {
+        "version" => vec!["--version".into()],
+        "auth" => vec!["auth".into(), "status".into()],
+        _ => return Err("Unknown request".into()),
+    };
     let out = claude_command(&args)
         .stdin(Stdio::null())
         .output()
@@ -284,7 +340,7 @@ pub fn run() {
             secret_delete,
             claude_run,
             claude_cancel,
-            claude_exec,
+            claude_info,
             git_status,
             open_terminal
         ])

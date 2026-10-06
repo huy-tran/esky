@@ -1,4 +1,4 @@
-// Runs the Claude Code CLI for the browser preview. The desktop app does the same through Tauri's shell plugin.
+// Runs the Claude Code CLI for the browser preview. The desktop app does the same in Rust (src-tauri/src/lib.rs).
 import { spawn } from 'node:child_process'
 
 /** Run `claude` with arguments (no shell) and collect stdout. */

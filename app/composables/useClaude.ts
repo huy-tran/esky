@@ -1,6 +1,6 @@
-// Claude through the user's Claude Code CLI. Desktop: Rust commands (claude_run / claude_exec).
+// Claude through the user's Claude Code CLI. Desktop: Rust commands (claude_run / claude_info).
 // Browser preview: the dev-only /api/claude routes. Both speak the same events (utils/claude.ts).
-import { claudeArgs, claudeWorkDir, lineParser, parseAuthStatus, type ClaudeEvent, type ClaudeRequest, type ClaudeStatus, type ClaudeUsage } from '~/utils/claude'
+import { checkRequest, lineParser, parseAuthStatus, systemPrompt, type ClaudeEvent, type ClaudeRequest, type ClaudeStatus, type ClaudeUsage } from '~/utils/claude'
 import { persistRef } from './usePersist'
 import { isTauri } from './usePlatform'
 
@@ -14,7 +14,6 @@ let runSeq = 0
 
 async function streamTauri(req: ClaudeRequest, onEvent: (e: ClaudeEvent) => void): Promise<ClaudeRun> {
   const { Channel, invoke } = await import('@tauri-apps/api/core')
-  const { homeDir } = await import('@tauri-apps/api/path')
   const runId = ++runSeq
   let resolve!: () => void
   const finished = new Promise<void>((r) => { resolve = r })
@@ -36,8 +35,9 @@ async function streamTauri(req: ClaudeRequest, onEvent: (e: ClaudeEvent) => void
     }
     parser.push(line + '\n')
   }
-  const home = (await homeDir()).replace(/[\\/]$/, '')
-  invoke('claude_run', { runId, args: claudeArgs(req), prompt: req.prompt, cwd: claudeWorkDir(home), onLine: channel }).catch((e) => {
+  // Rust builds the command line itself (see claude_args in lib.rs); it only takes these values.
+  const r = checkRequest(req)
+  invoke('claude_run', { runId, mode: r.mode, system: systemPrompt(r.system), sessionId: r.sessionId ?? null, prompt: r.prompt, onLine: channel }).catch((e) => {
     onEvent({ type: 'error', message: String(e) })
     resolve()
   })
@@ -90,9 +90,9 @@ function create() {
       if (!isTauri()) return await $fetch<ClaudeStatus>('/api/claude/status')
       const { invoke } = await import('@tauri-apps/api/core')
       type Out = { code: number | null, stdout: string, stderr: string }
-      const version = await invoke<Out>('claude_exec', { args: ['--version'] })
+      const version = await invoke<Out>('claude_info', { what: 'version' })
       if (version.code !== 0) return { installed: false, error: version.stderr.trim() }
-      const auth = await invoke<Out>('claude_exec', { args: ['auth', 'status'] })
+      const auth = await invoke<Out>('claude_info', { what: 'auth' })
       return { installed: true, version: version.stdout.trim().split(/\s/)[0], ...parseAuthStatus(auth.stdout) }
     } catch (e) {
       return { installed: false, error: (e as Error)?.message ?? String(e) }
@@ -101,7 +101,7 @@ function create() {
 
   /** Refresh plan usage with the smallest possible request (about 1k tokens of your plan). */
   async function refreshUsage() {
-    const run = await stream({ mode: 'quick', prompt: 'ok', system: 'Reply with the single word: ok' }, () => {})
+    const run = await stream({ mode: 'quick', prompt: 'ok', system: 'check' }, () => {})
     await run.finished
     return usage.value
   }

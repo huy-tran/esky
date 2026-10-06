@@ -10,7 +10,7 @@ import { EXTENSIONS, commandFor, extById, type ExtensionDef } from '~/extensions
 import { quick, resolveQ as resolveQuicklink, type QuickCard } from '~/utils/quick'
 import { useAliases, useExtensions } from './useExtensions'
 import { useClaude, type ClaudeRun } from './useClaude'
-import { CHAT_SYSTEM, QUICK_SYSTEM, type ClaudeStatus } from '~/utils/claude'
+import type { ClaudeStatus } from '~/utils/claude'
 import { markdownBlocks } from '~/utils/markdown'
 import { DeploySchema } from '~/utils/schemas'
 import { lookup, type DictEntry } from '~/utils/dictionary'
@@ -1049,7 +1049,7 @@ function createLauncher() {
     const context = !chat?.sessionId && chat?.context ? `${chat.context}\n\n` : ''
     const clip = attachText ? `Clipboard:\n\`\`\`\n${attachText}\n\`\`\`\n\n` : ''
     let reply = ''
-    run = await claude.stream({ mode: 'chat', prompt: context + clip + text, system: CHAT_SYSTEM, sessionId: chat?.sessionId }, (e) => {
+    run = await claude.stream({ mode: 'chat', prompt: context + clip + text, system: 'chat', sessionId: chat?.sessionId }, (e) => {
       if (e.type === 'session') {
         // Keep the latest session id so the next message continues this conversation.
         chats.value = chats.value.map(c => c.id === chatId ? { ...c, sessionId: e.id, context: undefined } : c)
@@ -1075,7 +1075,7 @@ function createLauncher() {
     }
     let out = ''
     const mine = () => s.view === 'aiResult' && s.ai?.cmd === cmd
-    run = await claude.stream({ mode: 'quick', prompt: s.selection!.text, system: QUICK_SYSTEM[cmd]! }, (e) => {
+    run = await claude.stream({ mode: 'quick', prompt: s.selection!.text, system: cmd }, (e) => {
       if (!mine()) return
       if (e.type === 'text') {
         out += e.text

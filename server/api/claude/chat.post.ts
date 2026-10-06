@@ -2,12 +2,23 @@
 import { spawn } from 'node:child_process'
 import { mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { claudeArgs, claudeWorkDir, lineParser, type ClaudeRequest } from '../../../app/utils/claude'
+import { checkRequest, claudeArgs, claudeWorkDir, lineParser, type ClaudeRequest } from '../../../app/utils/claude'
 
 export default defineEventHandler(async (event) => {
   if (!import.meta.dev) throw createError({ statusCode: 404 })
-  const req = await readBody<ClaudeRequest>(event)
-  if (!req?.prompt?.trim()) throw createError({ statusCode: 400, statusMessage: 'Empty prompt' })
+  // Only Esky's own page may start Claude: other sites can't send JSON here without a CORS
+  // preflight (which this server never approves), and their Origin wouldn't match.
+  const origin = getRequestHeader(event, 'origin')
+  const host = getRequestHeader(event, 'host')
+  if (!getRequestHeader(event, 'content-type')?.startsWith('application/json') || (origin && new URL(origin).host !== host)) {
+    throw createError({ statusCode: 403, statusMessage: 'Forbidden' })
+  }
+  let req: ClaudeRequest
+  try {
+    req = checkRequest(await readBody(event))
+  } catch (e) {
+    throw createError({ statusCode: 400, statusMessage: (e as Error).message })
+  }
 
   const cwd = claudeWorkDir(homedir())
   mkdirSync(cwd, { recursive: true })
