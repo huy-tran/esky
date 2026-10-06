@@ -1,0 +1,28 @@
+[package]
+name = "esky"
+version = "0.9.0"
+description = "Keyboard launcher for Windows"
+license = "MIT"
+authors = ["Esky contributors"]
+edition = "2021"
+
+[lib]
+name = "esky_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-autostart = "2"
+tauri-plugin-clipboard-manager = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-single-instance = "2"
+tauri-plugin-store = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+window-vibrancy = "0.6"
+keyring = { version = "3", features = ["windows-native"] }

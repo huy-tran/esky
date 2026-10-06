@@ -1,0 +1,67 @@
+// Dev-only: open the launcher in a given state with `/?scene=<key>`. Not reachable in production builds.
+import { CLIP_INIT, ONB_TG, SEL, SERVERS, CHAT_INIT, type ChatMsg } from '~/data/fixtures'
+
+export const SCENES = ['main', 'lar', 'actions', 'calc', 'units', 'fx', 'web', 'clip', 'clipEmpty', 'chat', 'approval', 'setup', 'selection', 'aiResult', 'forgeList', 'forgeDetail', 'deploy', 'toastOk', 'toastErr', 'snippets', 'expand', 'qlinkRoot', 'quicklinks', 'windows', 'files', 'system', 'confirm', 'hotkey', 'hkConflict', 'alias', 'store', 'emoji', 'notes', 'float', 'onboard']
+
+export function useScene(k: string) {
+  const L = useLauncher()
+  const s = L.s
+  const st = (x: Record<string, unknown> = {}) => Object.assign(s, { open: true, view: 'search', query: '', sel: 0, actionsOpen: false, approval: null, selection: null, stream: null, claudeReady: true, notice: '', splitQuery: '', splitSel: 0, hk: null, al: null, confirm: null, onb: null }, x)
+  const clone = (): ChatMsg[] => CHAT_INIT.map(m => ({ ...m, blocks: [...m.blocks] }))
+  L.floatId.value = null
+  switch (k) {
+    case 'main': return st()
+    case 'lar': return st({ query: 'lar' })
+    case 'actions': return st({ actionsOpen: true, actionsQuery: '', actionsSel: 0 })
+    case 'calc': return st({ query: '1250 * 1.1' })
+    case 'units': return st({ query: '5 km in mi' })
+    case 'fx': return st({ query: '100 usd to aud' })
+    case 'web': return st({ query: 'g nuxt ui command palette' })
+    case 'clip':
+      L.clip.value = CLIP_INIT.map(c => ({ ...c }))
+      return st({ view: 'clipboard', clipSel: 0, clipQuery: '' })
+    case 'clipEmpty':
+      L.clip.value = []
+      return st({ view: 'clipboard', clipSel: 0, clipQuery: '' })
+    case 'chat':
+      st({ agent: false })
+      return L.openChat('')
+    case 'approval': return st({ view: 'chat', agent: true, alwaysAllow: false, chatTitle: 'Soft-delete scope for orders', messages: [...clone(), { role: 'user', blocks: [{ type: 'p', text: 'Run the migrations so I can test the scope.' }] }, { role: 'assistant', blocks: [{ type: 'p', text: 'I\'ll apply the pending migrations to your local database first.' }, { type: 'tool', cmd: 'php artisan migrate', status: 'pending' }] }], approval: { cmd: 'php artisan migrate', cwd: '~/Sites/northwind-api' }, approvalSel: 0 })
+    case 'setup': return st({ view: 'chat', claudeReady: false, setupStep: 0, checking: false, messages: [], chatTitle: 'New chat' })
+    case 'selection': return st({ selection: SEL })
+    case 'aiResult':
+      st({ selection: SEL })
+      return L.runAi('grammar')
+    case 'forgeList': return st({ view: 'forgeList', forgeQuery: '', forgeSel: 0 })
+    case 'forgeDetail': return st({ view: 'forgeDetail', server: SERVERS[0] })
+    case 'deploy':
+      st()
+      return L.openDeploy(SERVERS[0]!, 'forgeDetail')
+    case 'snippets': case 'quicklinks': case 'windows': case 'files': case 'emoji': case 'notes':
+      return st({ view: k })
+    case 'expand':
+      st()
+      return L.closeWith('Expanded ;sig in Outlook')
+    case 'qlinkRoot': return st({ query: 'gh tauri window focus' })
+    case 'system': return st({ query: 'system' })
+    case 'confirm': return st({ query: 'restart', confirm: L.sysConfirm('restart') })
+    case 'hotkey': return st({ view: 'windows', hk: { id: 'wLeft', title: 'Left Half', combo: null, conflict: '' } })
+    case 'hkConflict': return st({ view: 'windows', hk: { id: 'wLeft', title: 'Left Half', combo: ['Ctrl', 'Shift', 'V'], ownerId: 'clip', conflict: 'Already used by Clipboard History. Saving moves the hotkey here.' } })
+    case 'alias': return st({ query: 'code', al: { id: 'figma', title: 'Figma', value: 'fig' } })
+    case 'store': return st({ view: 'store', splitSel: 2 })
+    case 'float':
+      st({ view: 'notes' })
+      L.floatId.value = 'n1'
+      return
+    case 'onboard': return st({ onb: { step: 0, hk: 0, tg: { ...ONB_TG } } })
+    case 'toastOk':
+      st()
+      L.openDeploy(SERVERS[0]!, 'forgeDetail')
+      return L.toast('success', 'Deployed northwind.app', 'main · migrations ran · finished in 38s')
+    case 'toastErr':
+      st()
+      L.openDeploy(SERVERS[0]!, 'forgeDetail')
+      s.deploy.branch = 'feature/payments'
+      return L.toast('error', 'Deployment failed', 'Branch “feature/payments” was not found on origin.', { label: 'Retry', run: () => L.submitDeploy() })
+  }
+}

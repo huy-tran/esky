@@ -1,0 +1,9 @@
+node_modules
+.nuxt
+.output
+.data
+dist
+src-tauri/target
+src-tauri/gen
+*.log
+.env

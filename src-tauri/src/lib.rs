@@ -1,0 +1,346 @@
+use std::collections::HashMap;
+use std::io::{BufRead, BufReader, Read, Write};
+use std::process::{Child, Command, Stdio};
+use std::sync::Mutex;
+use tauri::{
+    ipc::Channel,
+    menu::{Menu, MenuItem},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent,
+};
+
+/// Ask the launcher webview to open (it positions and shows its own window).
+fn show_launcher(app: &AppHandle) {
+    let _ = app.emit_to("main", "esky://show", ());
+}
+
+fn open_settings(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("settings") {
+        let _ = w.show();
+        let _ = w.set_focus();
+        return;
+    }
+    let _ = WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("/settings".into()))
+        .title("Esky Settings")
+        .inner_size(900.0, 620.0)
+        .resizable(false)
+        .maximizable(false)
+        .center()
+        .build();
+}
+
+// Extension tokens live in Windows Credential Manager under the "Esky" service.
+// `account` is "<extension>.<preference>", e.g. "forge.token".
+
+fn credential(account: &str) -> Result<keyring::Entry, String> {
+    keyring::Entry::new("Esky", account).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn secret_get(account: String) -> Result<Option<String>, String> {
+    match credential(&account)?.get_password() {
+        Ok(value) => Ok(Some(value)),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+#[tauri::command]
+fn secret_set(account: String, value: String) -> Result<(), String> {
+    credential(&account)?
+        .set_password(&value)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn secret_delete(account: String) -> Result<(), String> {
+    match credential(&account)?.delete_credential() {
+        Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+// AI chat runs through the user's own Claude Code CLI (their Claude subscription).
+// The prompt goes in on stdin, and each stdout line (stream-json) is passed straight to the page.
+
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+#[derive(Default)]
+struct ClaudeRuns(Mutex<HashMap<u32, Child>>);
+
+fn claude_command(args: &[String]) -> Command {
+    let mut cmd = Command::new("claude");
+    cmd.args(args);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    cmd
+}
+
+/// Start one Claude Code turn. Output lines arrive on `on_line`; the last one is an `esky_exit` record.
+#[tauri::command]
+fn claude_run(
+    app: AppHandle,
+    run_id: u32,
+    args: Vec<String>,
+    prompt: String,
+    cwd: String,
+    on_line: Channel<String>,
+) -> Result<(), String> {
+    std::fs::create_dir_all(&cwd).map_err(|e| e.to_string())?;
+    let mut child = claude_command(&args)
+        .current_dir(&cwd)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Couldn't start Claude Code: {e}"))?;
+
+    let mut stdin = child.stdin.take().ok_or("Claude Code has no stdin")?;
+    let stdout = child.stdout.take().ok_or("Claude Code has no stdout")?;
+    let mut stderr = child.stderr.take().ok_or("Claude Code has no stderr")?;
+    stdin.write_all(prompt.as_bytes()).map_err(|e| e.to_string())?;
+    drop(stdin); // EOF: Claude Code starts answering.
+
+    app.state::<ClaudeRuns>().0.lock().unwrap().insert(run_id, child);
+
+    let errors = std::thread::spawn(move || {
+        let mut text = String::new();
+        let _ = stderr.read_to_string(&mut text);
+        text
+    });
+    std::thread::spawn(move || {
+        for line in BufReader::new(stdout).lines() {
+            match line {
+                Ok(l) => {
+                    let _ = on_line.send(l);
+                }
+                Err(_) => break,
+            }
+        }
+        let stderr_text = errors.join().unwrap_or_default();
+        let child = app.state::<ClaudeRuns>().0.lock().unwrap().remove(&run_id);
+        let code = child.and_then(|mut c| c.wait().ok()).and_then(|s| s.code());
+        let _ = on_line.send(serde_json::json!({ "type": "esky_exit", "code": code, "stderr": stderr_text }).to_string());
+    });
+    Ok(())
+}
+
+/// Stop a running turn (Esc, new chat, closing the view).
+#[tauri::command]
+fn claude_cancel(app: AppHandle, run_id: u32) {
+    if let Some(child) = app.state::<ClaudeRuns>().0.lock().unwrap().get_mut(&run_id) {
+        let _ = child.kill();
+    }
+}
+
+#[derive(serde::Serialize)]
+struct ExecOutput {
+    code: Option<i32>,
+    stdout: String,
+    stderr: String,
+}
+
+/// Run a short Claude Code command, e.g. `--version` or `auth status`.
+#[tauri::command]
+fn claude_exec(args: Vec<String>) -> Result<ExecOutput, String> {
+    let out = claude_command(&args)
+        .stdin(Stdio::null())
+        .output()
+        .map_err(|e| format!("Couldn't start Claude Code: {e}"))?;
+    Ok(ExecOutput {
+        code: out.status.code(),
+        stdout: String::from_utf8_lossy(&out.stdout).into_owned(),
+        stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
+    })
+}
+
+// Git: `git status` for every repo in the folders from the Git extension's preferences.
+
+#[derive(serde::Serialize)]
+struct RepoStatus {
+    /// The configured folder the repo was found in, as typed (e.g. `~\Herd`).
+    root: String,
+    path: String,
+    name: String,
+    /// `git status --porcelain=v2 --branch` output; parsed on the page.
+    output: String,
+    error: Option<String>,
+}
+
+fn expand_home(path: &str, home: &std::path::Path) -> std::path::PathBuf {
+    match path.strip_prefix('~') {
+        Some(rest) => home.join(rest.trim_start_matches(['\\', '/'])),
+        None => std::path::PathBuf::from(path),
+    }
+}
+
+/// Repos in `root`: the folder itself if it is one, otherwise its direct subfolders that are.
+fn find_repos(root: &std::path::Path) -> Vec<std::path::PathBuf> {
+    if root.join(".git").exists() {
+        return vec![root.to_path_buf()];
+    }
+    let Ok(entries) = std::fs::read_dir(root) else {
+        return vec![];
+    };
+    let mut repos: Vec<_> = entries
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.is_dir() && p.join(".git").exists())
+        .collect();
+    repos.sort();
+    repos
+}
+
+fn git_status_of(path: &std::path::Path) -> Result<String, String> {
+    let mut cmd = Command::new("git");
+    cmd.arg("-C")
+        .arg(path)
+        .args(["status", "--porcelain=v2", "--branch"])
+        // Read-only: don't take the index lock other git tools may be holding.
+        .env("GIT_OPTIONAL_LOCKS", "0")
+        .stdin(Stdio::null());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    let out = cmd.output().map_err(|e| format!("Couldn't run git: {e}"))?;
+    if out.status.success() {
+        Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+    } else {
+        Err(String::from_utf8_lossy(&out.stderr).trim().to_string())
+    }
+}
+
+#[tauri::command]
+async fn git_status(app: AppHandle, roots: Vec<String>) -> Result<Vec<RepoStatus>, String> {
+    let home = app.path().home_dir().map_err(|e| e.to_string())?;
+    let repos: Vec<(String, std::path::PathBuf)> = roots
+        .iter()
+        .flat_map(|r| find_repos(&expand_home(r, &home)).into_iter().map(move |p| (r.clone(), p)))
+        .collect();
+
+    // A few at a time: dozens of git processes at once slow the whole PC down.
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    let results = Mutex::new(Vec::with_capacity(repos.len()));
+    std::thread::scope(|scope| {
+        for _ in 0..8 {
+            scope.spawn(|| loop {
+                let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                let Some((root, path)) = repos.get(i) else { break };
+                let status = git_status_of(path);
+                let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                results.lock().unwrap().push(RepoStatus {
+                    root: root.clone(),
+                    path: path.to_string_lossy().into_owned(),
+                    name,
+                    output: status.clone().unwrap_or_default(),
+                    error: status.err(),
+                });
+            });
+        }
+    });
+    Ok(results.into_inner().unwrap())
+}
+
+/// Windows Terminal in `path`, or PowerShell when Windows Terminal isn't installed.
+#[tauri::command]
+fn open_terminal(path: String) -> Result<(), String> {
+    let wt = Command::new("wt.exe").arg("-d").arg(&path).spawn();
+    if wt.is_ok() {
+        return Ok(());
+    }
+    Command::new("powershell.exe")
+        .arg("-NoExit")
+        .current_dir(&path)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("Couldn't open a terminal: {e}"))
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            show_launcher(app);
+        }))
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_store::Builder::new().build())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_fs::init())
+        .manage(ClaudeRuns::default())
+        .invoke_handler(tauri::generate_handler![
+            secret_get,
+            secret_set,
+            secret_delete,
+            claude_run,
+            claude_cancel,
+            claude_exec,
+            git_status,
+            open_terminal
+        ])
+        .setup(|app| {
+            let window = app
+                .get_webview_window("main")
+                .expect("launcher window is defined in tauri.conf.json");
+
+            // Mica on Windows 11, Acrylic on Windows 10. The page falls back to --win-bg.
+            #[cfg(target_os = "windows")]
+            {
+                use window_vibrancy::{apply_acrylic, apply_mica};
+                if apply_mica(&window, Some(true)).is_err() {
+                    let _ = apply_acrylic(&window, Some((15, 23, 42, 200)));
+                }
+            }
+
+            let open = MenuItem::with_id(app, "open", "Open Esky", true, None::<&str>)?;
+            let settings = MenuItem::with_id(app, "settings", "Settings…", true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", "Quit Esky", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&open, &settings, &quit])?;
+
+            TrayIconBuilder::with_id("esky")
+                .icon(app.default_window_icon().cloned().expect("app icon"))
+                .tooltip("Esky")
+                .menu(&menu)
+                .show_menu_on_left_click(false)
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "open" => show_launcher(app),
+                    "settings" => open_settings(app),
+                    "quit" => app.exit(0),
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        show_launcher(tray.app_handle());
+                    }
+                })
+                .build(app)?;
+
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            // Alt+F4 on the launcher hides it instead of quitting; Esky lives in the tray.
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "main" {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
+        .run(tauri::generate_context!())
+        .expect("error while running Esky");
+}

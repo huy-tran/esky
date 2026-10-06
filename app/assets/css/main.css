@@ -1,0 +1,193 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+@import "@fontsource/public-sans/400.css";
+@import "@fontsource/public-sans/500.css";
+@import "@fontsource/public-sans/600.css";
+@import "@fontsource/public-sans/700.css";
+@import "@fontsource/public-sans/800.css";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
+
+@source "../../data";
+@source "../../utils";
+@source "../../composables";
+
+@theme {
+  --font-sans: 'Public Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+/* Launcher tokens. Dark is primary. */
+:root,
+:root.dark {
+  --desk: #0B1120;
+  --win-bg: rgba(15, 23, 42, .80);
+  --win-bd: rgba(255, 255, 255, .10);
+  --pop-bg: rgba(30, 41, 59, .98);
+  --bd: rgba(255, 255, 255, .07);
+  --fg: #F1F5F9;
+  --muted: #94A3B8;
+  --faint: #7C8BA1;
+  --sel: rgba(74, 222, 128, .16);
+  --hover: rgba(255, 255, 255, .04);
+  --tile: rgba(255, 255, 255, .08);
+  --surface: rgba(255, 255, 255, .04);
+  --input-bg: rgba(255, 255, 255, .05);
+  --kbd-bg: rgba(255, 255, 255, .07);
+  --kbd-bd: rgba(255, 255, 255, .10);
+  --footer-bg: rgba(0, 0, 0, .16);
+  --accent: #4ADE80;
+  --on-accent: #0F172A;
+  --accent-fg: #86EFAC;
+  --accent-soft: rgba(34, 197, 94, .18);
+  --ok: #4ADE80;
+  --ok-soft: rgba(74, 222, 128, .14);
+  --warn: #FBBF24;
+  --warn-soft: rgba(251, 191, 36, .14);
+  --err: #F87171;
+  --err-soft: rgba(248, 113, 113, .14);
+  --code-bg: rgba(0, 0, 0, .28);
+  --code-fg: #CBD5E1;
+  --code-kw: #86EFAC;
+  --code-str: #86EFAC;
+  --code-var: #FCD34D;
+  --code-type: #7DD3FC;
+  --code-cm: #7C8BA1;
+  --dim: rgba(2, 6, 24, .5);
+  --overlay: rgba(2, 6, 24, .6);
+  --onb-bg: #1E293B;
+  --shadow: 0 24px 70px rgba(0, 0, 0, .5), 0 2px 10px rgba(0, 0, 0, .3);
+
+  /* Settings window */
+  --win: #0F172A;
+  --side: #0B1222;
+}
+
+:root.light {
+  --desk: #E7E5DC;
+  --win-bg: rgba(250, 250, 247, .84);
+  --win-bd: rgba(0, 0, 0, .10);
+  --pop-bg: rgba(255, 255, 255, .98);
+  --bd: rgba(0, 0, 0, .08);
+  --fg: #0F172A;
+  --muted: #475569;
+  --faint: #64748B;
+  --sel: rgba(34, 197, 94, .12);
+  --hover: rgba(0, 0, 0, .035);
+  --tile: rgba(0, 0, 0, .06);
+  --surface: rgba(0, 0, 0, .025);
+  --input-bg: #FFFFFF;
+  --kbd-bg: rgba(255, 255, 255, .9);
+  --kbd-bd: rgba(0, 0, 0, .14);
+  --footer-bg: rgba(0, 0, 0, .03);
+  --accent: #16A34A;
+  --on-accent: #FFFFFF;
+  --accent-fg: #15803D;
+  --accent-soft: rgba(22, 163, 74, .10);
+  --ok: #15803D;
+  --ok-soft: rgba(21, 128, 61, .10);
+  --warn: #A16207;
+  --warn-soft: rgba(161, 98, 7, .10);
+  --err: #DC2626;
+  --err-soft: rgba(220, 38, 38, .10);
+  --code-bg: rgba(0, 0, 0, .04);
+  --code-fg: #1E293B;
+  --code-kw: #15803D;
+  --code-str: #15803D;
+  --code-var: #A16207;
+  --code-type: #0369A1;
+  --code-cm: #64748B;
+  --dim: rgba(245, 244, 238, .55);
+  --overlay: rgba(236, 235, 228, .6);
+  --onb-bg: #FFFFFF;
+  --shadow: 0 24px 70px rgba(20, 20, 40, .18), 0 2px 10px rgba(20, 20, 40, .08);
+
+  --win: #FAFAF7;
+  --side: #F2F1EB;
+}
+
+/* Point Nuxt UI's semantic variables at the launcher tokens. */
+:root,
+:root.dark,
+:root.light {
+  --ui-primary: var(--accent);
+  --ui-error: var(--err);
+  --ui-warning: var(--warn);
+  --ui-success: var(--ok);
+  --ui-text: var(--fg);
+  --ui-text-highlighted: var(--fg);
+  --ui-text-muted: var(--muted);
+  --ui-text-dimmed: var(--faint);
+  --ui-text-inverted: var(--on-accent);
+  --ui-border: var(--bd);
+  --ui-border-muted: var(--bd);
+  --ui-border-accented: var(--bd);
+  --ui-bg: var(--pop-bg);
+  --ui-bg-elevated: var(--tile);
+  --ui-bg-accented: var(--tile);
+  --ui-radius: 6px;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+}
+
+/* The design uses the browser's default line-height, not Tailwind's 1.5. */
+html,
+body {
+  line-height: normal;
+}
+
+body {
+  font-family: 'Public Sans', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: var(--fg);
+}
+
+/* Outside Tauri there is no transparent window, so give the page a plain backdrop. */
+html.is-browser body {
+  background: var(--desk);
+}
+
+a {
+  color: var(--accent-fg);
+  text-decoration: none;
+}
+
+/* Code reads as typed: no `->` → arrow ligatures. */
+.font-mono,
+code {
+  font-variant-ligatures: none;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--faint);
+}
+
+@keyframes lp-shimmer {
+  0% { background-position: 200% 0 }
+  100% { background-position: -200% 0 }
+}
+
+@keyframes lp-spin {
+  to { transform: rotate(360deg) }
+}
+
+@keyframes lp-in {
+  from { opacity: 0; transform: translateY(6px) }
+  to { opacity: 1; transform: none }
+}
+
+@keyframes lp-pulse {
+  50% { opacity: .45 }
+}
+
+.lp-in { animation: lp-in .16s ease-out }
+
+.scroll-thin { scrollbar-width: thin }

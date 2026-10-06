@@ -1,0 +1,1965 @@
+// Launcher state and behaviour.
+import {
+  AFTER_TOOL, AI_CMDS, BRANCHES, CLIP_INIT, DENIED, EMOJI, FAVS, GROUPS,
+  ITEMS, KIND_LABEL, MODS, NOTES_INIT, ONB_HK, ONB_TG, QLINKS, RECENT, SEL, SERVERS,
+  SNIPS, SPLIT, SPLIT_FOOT, SPLIT_KEYS, SUGGEST, SYS_CONFIRM, TOOL_OUT, USAGE_INIT, WIN_CMDS, FILES,
+  type ChatBlock, type ChatMsg, type ClipItem, type Emoji, type FileEntry, type Note, type Quicklink,
+  type Selection, type Server, type Snippet, type SplitView, type WinCmd
+} from '~/data/fixtures'
+import { EXTENSIONS, commandFor, extById, type ExtensionDef } from '~/extensions/registry'
+import { quick, resolveQ as resolveQuicklink, type QuickCard } from '~/utils/quick'
+import { useAliases, useExtensions } from './useExtensions'
+import { useClaude, type ClaudeRun } from './useClaude'
+import { CHAT_SYSTEM, QUICK_SYSTEM, type ClaudeStatus } from '~/utils/claude'
+import { markdownBlocks } from '~/utils/markdown'
+import { DeploySchema } from '~/utils/schemas'
+import { lookup, type DictEntry } from '~/utils/dictionary'
+import type { HerdSite } from '~/utils/herd'
+import { useHerd } from './useHerd'
+import { parseFolders } from '~/utils/git'
+import { openTerminal, useGitRepos } from './useGitRepos'
+import { usePassword, wordlist } from './usePassword'
+import { comboOf, phSegs, trunc, type BodySeg } from '~/utils/text'
+import { copyText, floatNote, hideWindow, isTauri, openSettings, openUrl, readClipboardText, revealPath, showWindow } from './usePlatform'
+import { persistRef } from './usePersist'
+import { useSettings } from './useSettings'
+
+export type View = 'search' | 'clipboard' | 'chat' | 'aiResult' | 'forgeList' | 'forgeDetail' | 'deploy' | 'emoji' | 'herdList' | 'gitList' | 'password' | 'dictionary' | SplitView
+
+/** Senses shown per part of speech; the rest are one Ctrl O away on Wiktionary. */
+export const DICT_SENSES = 8
+
+export interface Row {
+  key: string
+  id?: string
+  title: string
+  sub: string
+  icon: string
+  tile?: string
+  kind?: string
+  keys?: string[]
+  label?: string
+  alias?: string
+  hl?: string
+  path?: string
+  run: () => void
+}
+
+export interface Section { title: string, rows: Row[] }
+
+export interface Hint { label: string, keys: string[], run: () => void, primary?: boolean }
+
+export interface ActionDef { id: string, title: string, icon: string, keys: string[], danger?: boolean }
+
+export interface SplitRow {
+  key: string
+  title: string
+  sub: string
+  icon: string
+  tile?: string
+  mono?: boolean
+  acc?: string
+  accMono?: boolean
+  accColor?: string
+  keys?: string[]
+  data: SplitData
+  g: string
+}
+
+export type SplitData = Snippet | Quicklink | WinCmd | FileEntry | ExtensionDef | Note
+
+export interface Detail {
+  head?: { icon?: string, tile?: string, title?: string, sub?: string, badge?: string, btn?: { label: string, primary: boolean, danger: boolean, busy: boolean, run: () => void } }
+  screens?: { name: string, win: null | { l: string, t: string, w: string, h: string } }[]
+  preview?: { ratio: string, label: string } | null
+  input?: { label: string, val: string, ph: string, hint: string, on: (v: string) => void } | null
+  body?: { segs: BodySeg[], mono?: boolean } | null
+  desc?: string
+  items?: { title: string, list: { t: string, icon: string }[] }
+  edit?: { val: string, on: (v: string) => void }
+  meta?: [string, string, (1 | undefined)?][]
+}
+
+type ToastKind = 'success' | 'error' | 'info'
+interface ToastAction { label: string, run: () => void }
+
+interface Stream { target: 'chat' | 'ai', text: string, pos: number, done?: boolean }
+
+/** A saved AI conversation. `sessionId` continues it in Claude Code; `context` primes chats started from Quick AI. */
+export interface SavedChat { id: string, title: string, sessionId?: string, context?: string, messages: ChatMsg[], updated: number }
+
+function createLauncher() {
+  const toastApi = useToast()
+  const colorMode = useColorMode()
+  const { settings } = useSettings()
+
+  const s = reactive({
+    // The desktop window starts hidden in the tray; the browser build starts open.
+    open: !isTauri(),
+    view: 'search' as View,
+    query: '',
+    sel: 0,
+    selection: null as Selection | null,
+    actionsOpen: false,
+    actionsQuery: '',
+    actionsSel: 0,
+    clipSel: 0,
+    clipQuery: '',
+    messages: [] as ChatMsg[],
+    chatInput: '',
+    showChats: true,
+    agent: false,
+    alwaysAllow: false,
+    approval: null as null | { cmd: string, cwd: string },
+    approvalSel: 0,
+    claudeReady: true,
+    setupStep: 0,
+    checking: false,
+    attach: null as string | null,
+    chatTitle: 'New chat',
+    chatId: '',
+    attachText: '',
+    claudeStatus: null as ClaudeStatus | null,
+    stream: null as Stream | null,
+    ai: null as null | { cmd: string, origOpen: boolean, result?: string, error?: string },
+    followUp: '',
+    forgeQuery: '',
+    forgeSel: 0,
+    server: SERVERS[0]!,
+    deploy: { site: 'northwind.app', branch: 'main', migrate: true },
+    deploying: false,
+    deployFrom: 'forgeDetail' as View,
+    branchErr: '',
+    splitQuery: '',
+    splitSel: 0,
+    installing: null as string | null,
+    args: {} as Record<string, string>,
+    expand: true,
+    dnd: false,
+    hk: null as null | { id: string, title: string, combo: string[] | null, conflict: string, ownerId?: string | null, reserved?: boolean, note?: string },
+    al: null as null | { id: string, title: string, value: string },
+    confirm: null as null | { title: string, desc: string, label: string, run: () => void },
+    onb: null as null | { step: number, hk: number, tg: Record<string, boolean> },
+    notice: '',
+    herdQuery: '',
+    herdSel: 0,
+    gitQuery: '',
+    gitSel: 0,
+    dictWord: '',
+    dictSel: 0
+  })
+
+  // Persisted state
+  const favs = ref<string[]>([...FAVS])
+  const disabled = ref<string[]>([])
+  const usage = ref<Record<string, number>>({ ...USAGE_INIT })
+  const recent = ref<string[]>([...RECENT])
+  const aliases = useAliases()
+  const hotkeys = ref<Record<string, string[]>>({})
+  const exts = useExtensions()
+  const installed = exts.installed
+  const notes = ref<Note[]>(NOTES_INIT.map(n => ({ ...n })))
+  const clip = ref<ClipItem[]>(CLIP_INIT.map(c => ({ ...c })))
+  const floatId = ref<string | null>(null)
+  const chats = ref<SavedChat[]>([])
+  const claude = useClaude()
+  const onboarded = ref(false)
+
+  const ready = Promise.all([
+    persistRef('favs', favs),
+    persistRef('disabled', disabled),
+    persistRef('usage', usage),
+    persistRef('recent', recent),
+    persistRef('hotkeys', hotkeys),
+    exts.ready,
+    persistRef('notes', notes),
+    persistRef('clipboard', clip),
+    persistRef('floatId', floatId),
+    persistRef('onboarded', onboarded),
+    persistRef('chats', chats)
+  ])
+
+  // DOM elements the key map needs to focus or compare against.
+  const els = shallowReactive({
+    top: null as HTMLInputElement | null,
+    chat: null as HTMLTextAreaElement | null,
+    deploy: null as HTMLElement | null,
+    act: null as HTMLInputElement | null,
+    arg: null as HTMLInputElement | null,
+    note: null as HTMLTextAreaElement | null,
+    al: null as HTMLInputElement | null
+  })
+
+  let tm: ReturnType<typeof setInterval> | undefined
+  let nt: ReturnType<typeof setTimeout> | undefined
+
+  const theme = () => (colorMode.value === 'light' ? 'light' : 'dark')
+
+  // ---------- helpers ----------
+
+  const rowKeys = (id: string): string[] | undefined => {
+    const h = hotkeys.value[id]
+    return h !== undefined ? h : ITEMS[id]?.keys
+  }
+
+  const comboOwner = (str: string, ex: string | null) =>
+    Object.keys(ITEMS).find((id) => {
+      if (id === ex) return false
+      const ks = rowKeys(id)
+      return !!ks && ks.length > 1 && MODS.includes(ks[0]!) && ks.join('+') === str
+    }) || null
+
+  const aliasOwner = (v: string, ex: string) => Object.keys(aliases.value).find(id => id !== ex && aliases.value[id] === v) || null
+
+  function toast(kind: ToastKind, title: string, desc = '', action: ToastAction | null = null) {
+    const icon = { success: 'i-lucide-circle-check', error: 'i-lucide-circle-x', info: 'i-lucide-info' }[kind]
+    const color = { success: 'success', error: 'error', info: 'primary' }[kind] as 'success' | 'error' | 'primary'
+    const id = `t${Date.now()}${Math.random()}`
+    toastApi.add({
+      id,
+      title,
+      description: desc || undefined,
+      icon,
+      color,
+      duration: 4500,
+      orientation: 'horizontal',
+      ui: { root: 'items-start', actions: 'items-start', ...(kind === 'info' ? { icon: 'text-(--accent-fg)' } : {}) },
+      close: { ui: { leadingIcon: 'size-[13px]' } },
+      actions: action
+        ? [{ label: action.label, color: 'neutral', variant: 'outline', class: 'h-6 px-2 rounded-[6px] ring-0 border border-(--bd) bg-(--surface) text-(--fg) text-[12px] font-normal', onClick: () => {
+            action.run()
+            toastApi.remove(id)
+          } }]
+        : undefined
+    })
+  }
+
+  function focus() {
+    requestAnimationFrame(() => {
+      if (!s.open) return
+      const el = s.al ? els.al : s.actionsOpen ? els.act : s.view === 'chat' ? els.chat : s.view === 'deploy' ? els.deploy : els.top
+      el?.focus?.()
+    })
+  }
+
+  const hasInputSel = () => {
+    const a = document.activeElement as HTMLInputElement | null
+    return !!a && a.selectionStart != null && a.selectionStart !== a.selectionEnd
+  }
+
+  const ok = (id: string) => !disabled.value.includes(id) && (!ITEMS[id]!.ext || exts.isActive(ITEMS[id]!.ext!))
+
+  // ---------- extension preferences ----------
+
+  /** Quicklink URL with the Laravel Docs version preference applied (the "ld" quicklink). */
+  const resolveQ = (q: Quicklink, arg: string) =>
+    resolveQuicklink(q, arg).replace(/laravel\.com\/docs\/[^/]+\//, `laravel.com/docs/${exts.prefsFor('docs').version || '12.x'}/`)
+
+  /** Calculator preferences, and quicklinks resolved as above. */
+  const quickOpts = () => {
+    const p = exts.prefsFor('calc')
+    return { decimals: Number(p.decimals ?? 6), separators: p.separators !== false, resolve: resolveQ }
+  }
+
+  /** Ask for missing setup instead of running a command that can't work. */
+  function needsSetup(ext: ExtensionDef, keys: string[]) {
+    const p = exts.prefsFor(ext.id)
+    const missing = ext.prefs.filter(f => keys.includes(f.key) && !p[f.key])
+    if (!missing.length) return false
+    toast('info', `Set up ${ext.name} first`, `Add your ${missing.map(f => f.label.toLowerCase()).join(' and ')} in Settings.`, { label: 'Open Settings', run: () => openSettings({ tab: 'extensions', ext: ext.id }) })
+    return true
+  }
+
+  // ---------- models ----------
+
+  const mk = (id: string, hl?: string): Row => {
+    const it = ITEMS[id]!
+    return { key: id, id, title: it.title, sub: it.sub, icon: it.icon, tile: it.tile, kind: it.kind, keys: rowKeys(id), label: KIND_LABEL[it.kind], alias: aliases.value[id] || '', hl, path: `C:\\Users\\alex\\AppData\\Local\\Programs\\${it.title}`, run: () => activate(id) }
+  }
+
+  // ---------- Herd sites ----------
+
+  const herd = useHerd()
+
+  const herdRow = (x: HerdSite, hl?: string): Row => ({
+    key: `herd:${x.name}`,
+    title: x.name,
+    sub: x.url.replace(/^https?:\/\//, ''),
+    icon: x.laravel ? 'i-lucide-feather' : 'i-lucide-globe',
+    tile: x.laravel ? '#E11D48' : undefined,
+    kind: 'herd',
+    label: 'Herd Site',
+    hl,
+    path: x.path,
+    run: () => openSite(x)
+  })
+
+  function openSite(x: HerdSite) {
+    usage.value = { ...usage.value, [`herd:${x.name}`]: (usage.value[`herd:${x.name}`] || 0) + 1 }
+    closeWith(`Opened ${x.url}`, () => openUrl(x.url))
+  }
+
+  /** Sites after the Herd preferences: hidden entirely when the extension is off. */
+  const herdSites = computed(() => {
+    if (!exts.isActive('herd')) return []
+    const all = exts.prefsFor('herd').showAll !== false
+    return herd.sites.value.filter(x => all || x.laravel)
+  })
+
+  const herdModel = computed(() => {
+    const q = s.herdQuery.trim().toLowerCase()
+    const list = herdSites.value.filter(x => !q || x.name.toLowerCase().includes(q) || x.path.toLowerCase().includes(q))
+    const groups = [...new Set(list.map(x => x.group))].map(g => ({ title: g, rows: list.filter(x => x.group === g) }))
+    return { groups, flat: groups.flatMap(g => g.rows) }
+  })
+  const curSite = () => herdModel.value.flat[s.herdSel]
+
+  const loadHerd = () => herd.load(String(exts.prefsFor('herd').configDir || ''))
+
+  function openHerd() {
+    go('herdList', { herdQuery: '', herdSel: 0 })
+    loadHerd()
+  }
+
+  const EDITORS: Record<string, { name: string, short: string, url: (path: string) => string }> = {
+    vscode: { name: 'Visual Studio Code', short: 'VS Code', url: p => `vscode://file/${p.replace(/\\/g, '/')}` },
+    cursor: { name: 'Cursor', short: 'Cursor', url: p => `cursor://file/${p.replace(/\\/g, '/')}` },
+    zed: { name: 'Zed', short: 'Zed', url: p => `zed://file/${p.replace(/\\/g, '/')}` },
+    phpstorm: { name: 'PhpStorm', short: 'PhpStorm', url: p => `phpstorm://open?file=${encodeURIComponent(p)}` }
+  }
+  /** An extension's "Open … with" preference. */
+  const editorFor = (ext: string) => EDITORS[String(exts.prefsFor(ext).editor)] ?? EDITORS.vscode!
+  const herdEditor = () => editorFor('herd')
+
+  // ---------- Git repos ----------
+
+  const git = useGitRepos()
+  const gitFolders = () => parseFolders(String(exts.prefsFor('git').folders || ''))
+  const loadGit = () => git.load(gitFolders())
+
+  /** Repos that need attention: uncommitted changes, and (if turned on) commits not pushed yet. */
+  const gitModel = computed(() => {
+    const unpushed = exts.prefsFor('git').unpushed !== false
+    const q = s.gitQuery.trim().toLowerCase()
+    const list = git.repos.value
+      .filter(r => r.error || r.files.length || (unpushed && r.ahead))
+      .filter(r => !q || r.name.toLowerCase().includes(q) || (r.branch || '').toLowerCase().includes(q))
+    const groups = [...new Set(list.map(r => r.root))].map(g => ({ title: g, rows: list.filter(r => r.root === g) }))
+    return { groups, flat: groups.flatMap(g => g.rows), checked: git.repos.value.length }
+  })
+  const curRepo = () => gitModel.value.flat[Math.min(s.gitSel, Math.max(0, gitModel.value.flat.length - 1))]
+
+  function openGit() {
+    go('gitList', { gitQuery: '', gitSel: 0 })
+    loadGit()
+  }
+
+  // ---------- Password Generator ----------
+
+  const pw = usePassword()
+
+  function openPassword() {
+    go('password')
+    pw.regenerate()
+    // Ready for a switch to Passphrase.
+    wordlist()
+  }
+
+  function copyPassword(close = true) {
+    if (!pw.value.value) return
+    copyText(pw.value.value)
+    const what = pw.opts.value.type === 'password' ? 'Password' : 'Passphrase'
+    if (close) closeWith(`${what} copied`)
+    else toast('success', `${what} copied`)
+  }
+
+  // ---------- Dictionary ----------
+
+  const dict = reactive({
+    status: 'idle' as 'idle' | 'loading' | 'ready' | 'empty' | 'error',
+    entry: null as DictEntry | null,
+    error: ''
+  })
+  let dictTimer: ReturnType<typeof setTimeout> | undefined
+  let dictSeq = 0
+
+  /** Look up `s.dictWord` after typing pauses. */
+  watch(() => s.dictWord, (w) => {
+    clearTimeout(dictTimer)
+    const word = w.trim()
+    if (!word) {
+      Object.assign(dict, { status: 'idle', entry: null, error: '' })
+      return
+    }
+    Object.assign(dict, { status: 'loading', entry: null })
+    const seq = ++dictSeq
+    dictTimer = setTimeout(async () => {
+      try {
+        const entry = await lookup(word, (full) => {
+          // Pronunciation and forms arrive later; swap in a copy so the view updates.
+          if (seq === dictSeq) dict.entry = { ...full, parts: full.parts.map(p => ({ ...p })) }
+        })
+        if (seq !== dictSeq) return
+        Object.assign(dict, { status: entry ? 'ready' : 'empty', entry, error: '' })
+        s.dictSel = 0
+      } catch (e) {
+        if (seq !== dictSeq) return
+        Object.assign(dict, { status: 'error', entry: null, error: (e as Error).message })
+      }
+    }, 350)
+  })
+
+  /** Every sense in display order, for ↑/↓ selection. */
+  const dictFlat = computed(() => (dict.entry?.parts ?? []).flatMap(p => p.senses.slice(0, DICT_SENSES).map((sense, i) => ({ pos: p.pos, n: i + 1, sense }))))
+  const curSense = () => dictFlat.value[s.dictSel]
+
+  const defineRow = (word: string): Row => ({ key: `def:${word}`, title: `Define “${word}”`, sub: 'Dictionary', icon: 'i-lucide-book-a', tile: '#0369A1', kind: 'dict', run: () => openDictionary(word) })
+
+  function openDictionary(word = '') {
+    go('dictionary', { dictWord: word, dictSel: 0, query: '' })
+  }
+
+  const searchModel = computed(() => {
+    const q = s.query.trim()
+    const ql = q.toLowerCase()
+    let card: (QuickCard & { run: () => void }) | null = null
+    const sections: Section[] = []
+    let def: RegExpMatchArray | null
+    if (!q) {
+      if (s.selection) sections.push({ title: 'Use selected text', rows: AI_CMDS.map(c => ({ key: c.id, title: c.title, sub: 'Quick AI', icon: c.icon, keys: c.keys, kind: 'ai', run: () => runAi(c.id) })) })
+      sections.push({ title: 'Favourites', rows: favs.value.filter(id => ITEMS[id] && ok(id)).map(id => mk(id)) })
+      sections.push({ title: 'Recent', rows: recent.value.filter(id => ITEMS[id] && ok(id)).map(id => mk(id)) })
+      sections.push({ title: 'Suggestions', rows: SUGGEST.filter(ok).map(id => mk(id)) })
+    } else if ((def = q.match(/^(?:define|def)\s+(.+)$/i))) {
+      sections.push({ title: 'Dictionary', rows: [defineRow(def[1]!.trim())] })
+    } else {
+      const t = quick(q, quickOpts())
+      if (t && 'card' in t) {
+        const c = t.card
+        card = { ...c, run: () => copyCard(c) }
+      }
+      if (t && 'rows' in t) {
+        sections.push({ title: t.title, rows: t.rows.map(r => ({ ...r, run: () => closeWith(r.action.msg, () => openFromMsg(r.key, r.sub, q)) })) })
+      }
+      if (ql === 'ai' || ql.startsWith('ai ')) {
+        const rest = q.slice(2).trim()
+        sections.push({ title: 'AI', rows: [{ key: 'askai', title: rest ? `Ask AI: ${rest}` : 'Ask AI', sub: 'Chat with Claude', icon: 'i-lucide-sparkles', keys: ['Tab'], kind: 'chat', run: () => openChat(rest) }] })
+      }
+      const aliasHit = t ? [] : Object.keys(aliases.value).filter(id => ITEMS[id] && ok(id) && aliases.value[id] === ql)
+      if (aliasHit.length) sections.push({ title: 'Alias', rows: aliasHit.map(id => mk(id)) })
+      if (!t) {
+        for (const [k, name] of GROUPS) {
+          const rows = Object.keys(ITEMS)
+            .filter(id => ok(id) && !aliasHit.includes(id) && ITEMS[id]!.kind === k && (ITEMS[id]!.title.toLowerCase().includes(ql) || ITEMS[id]!.sub.toLowerCase().includes(ql) || (aliases.value[id] || '').startsWith(ql)))
+            .sort((a, b) => (usage.value[b] || 0) - (usage.value[a] || 0))
+            .map(id => mk(id, ql))
+          if (rows.length) sections.push({ title: name, rows })
+        }
+        // Herd sites sit right after Applications and Commands.
+        const sites = herdSites.value
+          .filter(x => x.name.toLowerCase().includes(ql))
+          .sort((a, b) => (usage.value[`herd:${b.name}`] || 0) - (usage.value[`herd:${a.name}`] || 0))
+          .slice(0, 8)
+          .map(x => herdRow(x, ql))
+        if (sites.length) {
+          const at = sections.findLastIndex(x => x.title === 'Applications' || x.title === 'Commands' || x.title === 'Alias') + 1
+          sections.splice(at, 0, { title: 'Herd Sites', rows: sites })
+        }
+      }
+      const web: Row[] = [
+        { key: 'g', title: `Search Google for “${q}”`, sub: 'Web', icon: 'i-lucide-globe', tile: '#2563EB', run: () => closeWith(`Searching Google for “${q}”`, () => openUrl(`https://www.google.com/search?q=${encodeURIComponent(q)}`)) },
+        { key: 'askq', title: `Ask AI “${q}”`, sub: 'Claude', icon: 'i-lucide-sparkles', kind: 'chat', run: () => openChat(q) },
+        ...(/^[a-z][a-z'-]*$/i.test(q) && !card ? [defineRow(q)] : [])
+      ]
+      if (card) sections.push({ title: `Use “${q}” with…`, rows: web })
+      else if (!sections.length) sections.push({ title: 'No matches · search elsewhere', rows: web })
+    }
+    const flat: Row[] = [...(card ? [{ key: 'card', title: card.big, sub: '', icon: card.icon, kind: 'card', run: card.run }] : []), ...sections.flatMap(x => x.rows)]
+    return { card, sections, flat }
+  })
+
+  function openFromMsg(key: string, sub: string, q: string) {
+    const m = q.trim().match(/^g\s+(.+)$/i)
+    const t = encodeURIComponent(m?.[1] ?? '')
+    if (key === 'wg') return openUrl(`https://www.google.com/search?q=${t}`)
+    if (key === 'wgh') return openUrl(`https://github.com/search?q=${t}`)
+    if (key === 'wl') return openUrl(`https://laravel.com/docs/search?q=${t}`)
+    if (key === 'ql') return openUrl(sub)
+  }
+
+  const clipModel = computed(() => {
+    const q = s.clipQuery.trim().toLowerCase()
+    const list = clip.value.filter(c => !q || c.preview.toLowerCase().includes(q) || c.app.toLowerCase().includes(q))
+    const groups = ([['pinned', 'Pinned'], ['today', 'Today'], ['yesterday', 'Yesterday']] as const)
+      .map(([g, t]) => ({ title: t, rows: list.filter(c => (c.pinned ? 'pinned' : c.day) === g) }))
+      .filter(g => g.rows.length)
+    return { groups, flat: groups.flatMap(g => g.rows) }
+  })
+  const curClip = () => clipModel.value.flat[s.clipSel]
+
+  const forgeModel = computed(() => {
+    const q = s.forgeQuery.trim().toLowerCase()
+    const list = SERVERS.filter(x => !q || x.name.includes(q) || x.ip.includes(q) || x.provider.toLowerCase().includes(q))
+    const groups = ['DigitalOcean', 'AWS', 'Hetzner'].map(p => ({ title: p, rows: list.filter(x => x.provider === p) })).filter(g => g.rows.length)
+    return { groups, flat: groups.flatMap(g => g.rows) }
+  })
+
+  const splitModel = computed(() => {
+    const v = s.view
+    const q = s.splitQuery.trim().toLowerCase()
+    const has = (...xs: (string | undefined)[]) => !q || xs.some(x => (x || '').toLowerCase().includes(q))
+    const grp = (rows: SplitRow[], order?: string[]) =>
+      (order || [...new Set(rows.map(r => r.g))]).map(t => ({ title: t.toUpperCase(), rows: rows.filter(r => r.g === t) })).filter(g => g.rows.length)
+    let groups: { title: string, rows: SplitRow[] }[] = []
+    if (v === 'snippets') groups = grp(SNIPS.filter(x => has(x.name, x.kw, x.text)).map(x => ({ key: x.id, title: x.name, sub: x.text.split('\n')[0]!, icon: 'i-lucide-text-quote', acc: x.kw, accMono: true, data: x, g: x.folder })), ['Email', 'General', 'Code'])
+    if (v === 'quicklinks') groups = grp(QLINKS.filter(x => has(x.name, x.kw, x.url)).map(x => ({ key: x.id, title: x.name, sub: x.url, mono: true, icon: x.icon, tile: x.tile, acc: x.kw, accMono: true, data: x, g: 'Quicklinks' })))
+    if (v === 'windows') groups = grp(WIN_CMDS.filter(x => has(x.title)).map(x => ({ key: x.id, title: x.title, sub: x.g, icon: x.icon, keys: rowKeys(x.id), data: x, g: x.g })))
+    if (v === 'files') groups = grp(FILES.filter(x => has(x.name, x.dir)).map(x => ({ key: x.id, title: x.name, sub: x.dir, icon: x.icon, tile: x.tile, acc: x.mod.split(',')[0], data: x, g: q ? 'Files' : 'Recent files' })))
+    if (v === 'store') {
+      groups = grp(EXTENSIONS.filter(x => !x.builtIn && has(x.name, x.desc)).map((x) => {
+        const inst = installed.value.includes(x.id)
+        return { key: x.id, title: x.name, sub: x.desc, icon: x.icon, tile: x.tile, acc: s.installing === x.id ? 'Installing…' : inst ? 'Installed' : '', accColor: inst ? 'var(--ok)' : 'var(--muted)', data: x, g: inst ? 'Installed' : 'Available' }
+      }), ['Installed', 'Available'])
+    }
+    if (v === 'notes') groups = grp(notes.value.filter(x => has(x.body)).map(x => ({ key: x.id, title: x.body.split('\n')[0] || 'Untitled note', sub: x.updated, icon: 'i-lucide-sticky-note', acc: floatId.value === x.id ? 'Floating' : '', accColor: 'var(--warn)', data: x, g: 'Notes' })))
+    return { groups, flat: groups.flatMap(g => g.rows) }
+  })
+  const curSplit = () => {
+    const f = splitModel.value.flat
+    return f[Math.min(s.splitSel, f.length - 1)]?.data as (SplitData & { id: string }) | undefined
+  }
+
+  const emojiModel = computed(() => {
+    const q = s.splitQuery.trim().toLowerCase()
+    const groups = EMOJI.map(g => ({ title: g.title, rows: g.items.filter(x => !q || x.n.includes(q)) })).filter(g => g.rows.length)
+    return { groups, flat: groups.flatMap(g => g.rows) }
+  })
+  const curEmoji = (): Emoji | undefined => {
+    const f = emojiModel.value.flat
+    return f[Math.min(s.splitSel, f.length - 1)]
+  }
+
+  function screens(w: WinCmd): Detail['screens'] {
+    const one = (name: string, r: number[] | null | undefined) => ({ name, win: r ? { l: r[0] + '%', t: (r[1]! * 0.9) + '%', w: r[2] + '%', h: (r[3]! * 0.9) + '%' } : null })
+    return w.display ? [one('Display 1', null), one('Display 2 · active after move', [0, 0, 100, 100])] : [one('Display 1 · 2560 × 1440', w.r)]
+  }
+
+  function detail(x: SplitData | undefined): Detail | null {
+    const v = s.view
+    if (!x) return null
+    const setArg = (val: string) => { s.args = { ...s.args, [x.id]: val } }
+    if (v === 'snippets') {
+      const n = x as Snippet
+      return { head: { icon: 'i-lucide-text-quote', title: n.name, sub: s.expand ? `Type ${n.kw} in any app to expand` : 'Text expansion is off' }, body: { segs: phSegs(n.text), mono: n.mono }, meta: [['Keyword', n.kw, 1], ['Folder', n.folder], ['Placeholders', (n.text.match(/\{\w+\}/g) || []).join(', ') || 'None'], ['Last used', n.last]] }
+    }
+    if (v === 'quicklinks') {
+      const n = x as Quicklink
+      const val = s.args[n.id] ?? ''
+      return { head: { icon: n.icon, tile: n.tile, title: n.name, sub: n.arg ? resolveQ(n, val || '…') : n.url }, input: n.arg ? { label: n.arg, val, ph: `Type a ${n.arg.toLowerCase()}`, hint: `Tip: type “${n.kw} ${n.arg.toLowerCase()}” in root search to skip this step.`, on: setArg } : null, body: { segs: phSegs(n.url), mono: true }, meta: [['Keyword', n.kw, 1], ['Opens in', n.url.startsWith('http') ? 'Microsoft Edge' : 'File Explorer'], ['Alias', aliases.value[n.id] || 'None']] }
+    }
+    if (v === 'windows') {
+      const n = x as WinCmd
+      return { head: { icon: n.icon, title: n.title, sub: 'Applies to the front window · Visual Studio Code' }, screens: screens(n), meta: [['Hotkey', (rowKeys(n.id) || []).join(' + ') || 'None'], ['Display', n.display ? 'Display 1 → Display 2' : 'Display 1']] }
+    }
+    if (v === 'files') {
+      const n = x as FileEntry
+      return { head: { icon: n.icon, tile: n.tile, title: n.name, sub: n.dir }, preview: n.preview ? null : { ratio: n.img ? '16/10' : '4/3', label: n.label! }, body: n.preview ? { segs: [{ t: n.preview }], mono: true } : null, meta: [['Where', n.dir, 1], ['Size', n.size], ['Modified', n.mod], ['Kind', n.kindLabel]] }
+    }
+    if (v === 'store') {
+      const n = x as ExtensionDef
+      const inst = installed.value.includes(n.id)
+      const busy = s.installing === n.id
+      return { head: { icon: n.icon, tile: n.tile, title: n.name, sub: `by ${n.author}`, btn: { label: busy ? 'Installing…' : inst ? 'Uninstall' : 'Install', primary: !inst, danger: inst, busy, run: () => inst ? askUninstall(n) : install(n) } }, desc: n.desc, items: { title: 'COMMANDS', list: n.commands.map(c => ({ t: c.title, icon: n.icon })) }, meta: [['Author', n.author], ['Version', n.ver], ['Status', inst ? (exts.isActive(n.id) ? 'Installed' : 'Installed · turned off') : 'Not installed']] }
+    }
+    if (v === 'notes') {
+      const n = x as Note
+      const words = n.body.trim() ? n.body.trim().split(/\s+/).length : 0
+      return { edit: { val: n.body, on: val => editNote(n.id, val) }, meta: [['Updated', n.updated], ['Words', String(words)], ['Floating', floatId.value === n.id ? 'Yes' : 'No']] }
+    }
+    return null
+  }
+
+  const aiCmd = () => AI_CMDS.find(c => c.id === (s.ai ? s.ai.cmd : 'grammar'))!
+
+  const actionsModel = computed(() => {
+    let target = ''
+    let list: ActionDef[] = []
+    const O = (id: string, title: string, icon: string, keys: string[], danger?: boolean): ActionDef => ({ id, title, icon, keys, danger })
+    if (s.view === 'search') {
+      const e = searchModel.value.flat[s.sel]
+      target = e ? e.title : ''
+      const fav = !!e?.id && favs.value.includes(e.id)
+      list = [O('open', 'Open', 'i-lucide-corner-down-left', ['↵']), O('admin', 'Run as Administrator', 'i-lucide-shield', ['Ctrl', 'Shift', '↵']), O('reveal', 'Reveal in Explorer', 'i-lucide-folder-search', ['Ctrl', 'Shift', 'E']), O('path', 'Copy Path', 'i-lucide-copy', ['Ctrl', 'Shift', 'C']), O('pin', fav ? 'Unpin from Favourites' : 'Pin to Favourites', 'i-lucide-pin', ['Ctrl', 'Shift', 'P']), O('alias', 'Add Alias', 'i-lucide-at-sign', ['Ctrl', 'Shift', 'A']), O('hotkey', 'Set Hotkey', 'i-lucide-keyboard', ['Ctrl', 'Shift', 'H']), O('disable', 'Disable Result', 'i-lucide-eye-off', ['Ctrl', 'Shift', 'D'], true)]
+    } else if (s.view === 'clipboard') {
+      const c = curClip()
+      target = c ? trunc(c.preview, 40) : 'Clipboard'
+      list = [O('cpaste', 'Paste', 'i-lucide-clipboard-paste', ['↵']), O('ccopy', 'Copy', 'i-lucide-copy', ['Ctrl', 'C']), O('cpin', c?.pinned ? 'Unpin' : 'Pin', 'i-lucide-pin', ['Ctrl', 'P']), O('cdelete', 'Delete', 'i-lucide-trash-2', ['Ctrl', '⌫'], true)]
+    } else if (s.view === 'forgeList' || s.view === 'forgeDetail') {
+      const sv = s.view === 'forgeList' ? forgeModel.value.flat[s.forgeSel] : s.server
+      target = sv ? sv.name : ''
+      list = [...(s.view === 'forgeList' ? [O('fopen', 'Show Details', 'i-lucide-panel-right', ['↵'])] : []), O('fdeploy', 'Deploy Site', 'i-lucide-rocket', ['Ctrl', 'D']), O('fforge', 'Open in Forge', 'i-lucide-external-link', ['Ctrl', 'O']), O('fip', 'Copy IP Address', 'i-lucide-copy', ['Ctrl', 'Shift', 'C']), O('fssh', 'SSH into Server', 'i-lucide-square-terminal', ['Ctrl', 'Shift', 'S'])]
+    } else if (s.view === 'chat') {
+      target = s.chatTitle
+      list = [O('newchat', 'New Chat', 'i-lucide-square-pen', ['Ctrl', 'N']), O('togglechats', s.showChats ? 'Hide Chat List' : 'Show Chat List', 'i-lucide-panel-left', ['Ctrl', 'B']), O('attach', 'Attach Clipboard', 'i-lucide-paperclip', ['Ctrl', 'Shift', 'V']), O('agent', s.agent ? 'Turn Off Agent Mode' : 'Turn On Agent Mode', 'i-lucide-triangle-alert', [])]
+    } else if (s.view === 'herdList') {
+      const x = curSite()
+      target = x ? x.name : 'Herd Sites'
+      list = [O('hopen', 'Open in Browser', 'i-lucide-globe', ['↵']), O('hcode', `Open in ${herdEditor().name}`, 'i-lucide-code-xml', ['Ctrl', 'O']), O('hreveal', 'Reveal in Explorer', 'i-lucide-folder-search', ['Ctrl', 'Shift', 'E']), O('hurl', 'Copy URL', 'i-lucide-link', ['Ctrl', 'Shift', 'C']), O('hpath', 'Copy Path', 'i-lucide-copy', ['Ctrl', 'Shift', 'P']), O('hreload', 'Reload Sites', 'i-lucide-refresh-cw', ['Ctrl', 'R'])]
+    } else if (s.view === 'gitList') {
+      const r = curRepo()
+      target = r ? r.name : 'Uncommitted Changes'
+      list = [O('gopen', `Open in ${editorFor('git').name}`, 'i-lucide-code-xml', ['↵']), O('gterm', 'Open in Terminal', 'i-lucide-square-terminal', ['Ctrl', 'T']), O('greveal', 'Reveal in Explorer', 'i-lucide-folder-search', ['Ctrl', 'Shift', 'E']), O('gpath', 'Copy Path', 'i-lucide-copy', ['Ctrl', 'Shift', 'C']), O('greload', 'Check Again', 'i-lucide-refresh-cw', ['Ctrl', 'R'])]
+    } else if (s.view === 'password') {
+      target = pw.opts.value.type === 'password' ? 'Password' : 'Passphrase'
+      list = [O('pwcopy', 'Copy and Close', 'i-lucide-copy', ['↵']), O('pwnew', 'Generate Another', 'i-lucide-refresh-cw', ['Ctrl', 'R']), O('pwtype', pw.opts.value.type === 'password' ? 'Switch to Passphrase' : 'Switch to Password', 'i-lucide-arrow-left-right', ['Ctrl', 'T'])]
+    } else if (s.view === 'dictionary') {
+      target = dict.entry?.word || 'Dictionary'
+      list = [O('dcopy', 'Copy Definition', 'i-lucide-copy', ['↵']), O('dword', 'Copy Word', 'i-lucide-type', ['Ctrl', 'Shift', 'C']), O('dopen', 'Open in Wiktionary', 'i-lucide-external-link', ['Ctrl', 'O'])]
+    } else if (s.view === 'aiResult') {
+      target = aiCmd().title
+      list = [O('aipaste', 'Paste', 'i-lucide-clipboard-paste', ['↵']), O('aicopy', 'Copy', 'i-lucide-copy', ['Ctrl', 'C']), O('aichat', 'Continue in Chat', 'i-lucide-message-square', ['Tab']), O('regen', 'Regenerate', 'i-lucide-refresh-cw', ['Ctrl', 'R'])]
+    } else if (SPLIT[s.view] || s.view === 'emoji') {
+      const x = s.view === 'emoji' ? curEmoji() : curSplit()
+      const any = x as Record<string, any> | undefined
+      target = any ? (any.name || any.title || (any.body != null ? (any.body.split('\n')[0] || 'Untitled note') : any.n)) : ''
+      const sx = x as (SplitData & { id: string }) | undefined
+      list = ({
+        snippets: [O('split', 'Paste', 'i-lucide-clipboard-paste', ['↵']), O('sncopy', 'Copy', 'i-lucide-copy', ['Ctrl', 'C']), O('snexpand', s.expand ? 'Turn Off Text Expansion' : 'Turn On Text Expansion', 'i-lucide-keyboard', [])],
+        quicklinks: [O('split', 'Open', 'i-lucide-external-link', ['↵']), O('qcopy', 'Copy URL', 'i-lucide-copy', ['Ctrl', 'Shift', 'C']), O('alias', 'Add Alias', 'i-lucide-at-sign', ['Ctrl', 'Shift', 'A']), O('hotkey', 'Set Hotkey', 'i-lucide-keyboard', ['Ctrl', 'Shift', 'H'])],
+        windows: [O('split', 'Apply Layout', 'i-lucide-app-window', ['↵']), O('hotkey', 'Set Hotkey', 'i-lucide-keyboard', ['Ctrl', 'Shift', 'H'])],
+        files: [O('split', 'Open', 'i-lucide-corner-down-left', ['↵']), O('fwith', 'Open With Visual Studio Code', 'i-lucide-code-xml', ['Ctrl', 'O']), O('fpath', 'Copy Path', 'i-lucide-copy', ['Ctrl', 'Shift', 'C']), O('freveal', 'Reveal in Explorer', 'i-lucide-folder-search', ['Ctrl', 'Shift', 'E']), O('fattach', 'Attach to AI Chat', 'i-lucide-sparkles', ['Ctrl', 'Shift', 'A'])],
+        store: sx && installed.value.includes(sx.id) ? [O('split', 'Configure', 'i-lucide-settings', ['↵']), O('xuninstall', 'Uninstall', 'i-lucide-trash-2', ['Ctrl', '⌫'], true)] : [O('split', 'Install', 'i-lucide-download', ['↵'])],
+        notes: [O('nnew', 'New Note', 'i-lucide-square-pen', ['Ctrl', 'N']), O('nfloat', sx && floatId.value === sx.id ? 'Stop Floating' : 'Float on Desktop', 'i-lucide-picture-in-picture-2', ['Ctrl', 'Shift', 'F']), O('ndelete', 'Delete Note', 'i-lucide-trash-2', ['Ctrl', '⌫'], true)],
+        emoji: [O('epaste', 'Paste', 'i-lucide-clipboard-paste', ['↵']), O('ecopy', 'Copy', 'i-lucide-copy', ['Ctrl', 'C'])]
+      } as Record<string, ActionDef[]>)[s.view]!
+    } else {
+      target = 'Deploy Site'
+      list = [O('deploy', 'Deploy', 'i-lucide-rocket', ['Ctrl', '↵']), O('back', 'Cancel', 'i-lucide-x', ['Esc'])]
+    }
+    const q = s.actionsQuery.trim().toLowerCase()
+    if (q) list = list.filter(a => a.title.toLowerCase().includes(q))
+    return { target, list }
+  })
+
+  // ---------- navigation ----------
+
+  function go(view: View, extra: Partial<typeof s> = {}) {
+    clearInterval(tm)
+    cancelRun()
+    Object.assign(s, { open: true, view, sel: 0, actionsOpen: false, stream: null }, extra)
+  }
+
+  function openWin() {
+    Object.assign(s, { open: true, view: 'search', query: '', sel: 0, actionsOpen: false, approval: null })
+  }
+
+  /** Run the action, then hide Esky. `msg` describes what happened (shown as a notice in the browser build). */
+  function closeWith(msg: string, effect?: () => unknown) {
+    clearInterval(tm)
+    Object.assign(s, { open: false, notice: msg, actionsOpen: false, approval: null, selection: null })
+    clearTimeout(nt)
+    nt = setTimeout(() => { s.notice = '' }, 2800)
+    effect?.()
+  }
+
+  function copyCard(c: QuickCard) {
+    copyText(c.copy)
+    toast('success', `Copied ${c.copy}`, c.caption.replace(/ =$/, ''))
+  }
+
+  function activate(id: string) {
+    const it = ITEMS[id]!
+    usage.value = { ...usage.value, [id]: (usage.value[id] || 0) + 1 }
+    recent.value = [id, ...recent.value.filter(x => x !== id)].slice(0, 5)
+    if ((it.go && SPLIT[it.go]) || it.go === 'emoji') return go(it.go as View, { splitQuery: '', splitSel: 0 })
+    if (it.go === 'onboard') return Object.assign(s, { open: true, actionsOpen: false, onb: { step: 0, hk: 0, tg: { ...ONB_TG } } })
+    if (it.qlink) {
+      const q = it.qlink
+      if (!q.arg) return closeWith(`Opened ${q.url}`, () => openUrl(q.url))
+      go('quicklinks', { splitQuery: '', splitSel: QLINKS.indexOf(q) })
+      return focusArg()
+    }
+    if (it.snip) return closeWith(`Pasted ${it.snip.kw} · ${it.snip.name}`)
+    if (it.win) return applyWin(it.win)
+    const ec = !it.go ? commandFor(id) : null
+    if (ec) {
+      if (ec.cmd.needs && needsSetup(ec.ext, ec.cmd.needs)) return
+      if (ec.cmd.url) {
+        const url = ec.cmd.url(exts.prefsFor(ec.ext.id))
+        return closeWith(`Opened ${ec.ext.name} › ${ec.cmd.title}`, () => openUrl(url))
+      }
+      // No real integration yet (Colour Picker, Media Controls, Docker).
+      return closeWith(`Opened ${it.sub} › ${it.title}`)
+    }
+    if (SYS_CONFIRM[id]) return Object.assign(s, { open: true, confirm: sysConfirm(id) })
+    if (id === 'sleep') return closeWith('Going to sleep…')
+    if (id === 'dnd') {
+      const on = !s.dnd
+      s.dnd = on
+      return toast('info', on ? 'Do Not Disturb on' : 'Do Not Disturb off', on ? 'Notifications are silenced until you turn it off.' : 'Notifications are back on.')
+    }
+    if (id === 'eject') return toast('success', 'Safe to remove', 'Kingston DataTraveler (E:) ejected')
+    if (it.go === 'clipboard') return go('clipboard', { clipQuery: '', clipSel: 0 })
+    if (it.go === 'chat') return openChat('')
+    if (it.go === 'forgeList') return go('forgeList', { forgeQuery: '', forgeSel: 0 })
+    if (it.go === 'herdList') return openHerd()
+    if (it.go === 'gitList') return openGit()
+    if (it.go === 'password') return openPassword()
+    if (it.go === 'dictionary') return openDictionary()
+    if (it.go === 'deploy') {
+      const name = exts.prefsFor('forge').server
+      return openDeploy(SERVERS.find(x => x.name === name) ?? SERVERS[0]!, 'search')
+    }
+    if (it.go === 'theme') {
+      colorMode.preference = theme() === 'dark' ? 'light' : 'dark'
+      return
+    }
+    if (it.go === 'settings') return openSettings()
+    if (it.ai) return runAi(it.ai)
+    if (id === 'lock') return closeWith('Screen locked')
+    closeWith(`Opened ${it.title}`)
+  }
+
+  function back() {
+    if (s.view === 'search') {
+      if (s.query) Object.assign(s, { query: '', sel: 0 })
+      else if (s.selection) Object.assign(s, { selection: null, sel: 0 })
+      else s.open = false
+      return
+    }
+    if (s.view === 'forgeDetail') return go('forgeList')
+    if (s.view === 'deploy') return go(s.deployFrom)
+    go('search', { query: '' })
+  }
+
+  // ---------- split views ----------
+
+  const focusArg = () => setTimeout(() => els.arg?.focus(), 40)
+
+  function runSplit() {
+    const x = curSplit()
+    if (!x) return
+    switch (s.view) {
+      case 'snippets': {
+        const n = x as Snippet
+        return closeWith(`Pasted ${n.kw} · ${n.name}`)
+      }
+      case 'quicklinks': {
+        const n = x as Quicklink
+        const a = (s.args[n.id] || '').trim()
+        if (n.arg && !a) {
+          toast('info', `Enter a ${n.arg.toLowerCase()} first`)
+          return focusArg()
+        }
+        const url = n.arg ? resolveQ(n, a) : n.url
+        return closeWith(`Opened ${url}`, () => openUrl(url))
+      }
+      case 'windows': return applyWin(x as WinCmd)
+      case 'files': return closeWith(`Opened ${(x as FileEntry).name}`)
+      case 'store':
+        if (installed.value.includes(x.id)) return openSettings({ tab: 'extensions', ext: x.id })
+        return install(x as ExtensionDef)
+      case 'notes':
+        setTimeout(() => els.note?.focus(), 40)
+    }
+  }
+
+  const applyWin = (w: WinCmd) => closeWith(w.display ? 'Moved Visual Studio Code to Display 2' : `Visual Studio Code · ${w.title}`)
+
+  function install(x: ExtensionDef) {
+    if (s.installing) return
+    s.installing = x.id
+    setTimeout(() => {
+      s.installing = null
+      exts.install(x.id)
+      const n = x.commands.length
+      const required = x.prefs.some(f => f.required)
+      toast('success', `Installed ${x.name}`, `${n} command${n > 1 ? 's' : ''} added to search${required ? '. It needs setting up before use.' : ''}`, required ? { label: 'Set up', run: () => openSettings({ tab: 'extensions', ext: x.id }) } : null)
+    }, 1100)
+  }
+
+  function askUninstall(x: ExtensionDef) {
+    s.confirm = { title: `Uninstall ${x.name}?`, desc: `Its ${x.commands.length} commands will be removed from search. Your preferences are kept in case you reinstall.`, label: 'Uninstall', run: () => {
+      exts.uninstall(x.id)
+      toast('info', `Uninstalled ${x.name}`)
+    } }
+  }
+
+  function editNote(id: string, body: string) {
+    notes.value = notes.value.map(n => n.id === id ? { ...n, body, updated: 'Just now' } : n)
+  }
+
+  function newNote() {
+    const id = 'n' + Date.now()
+    notes.value = [{ id, body: '', updated: 'Just now' }, ...notes.value]
+    s.splitSel = 0
+    s.splitQuery = ''
+    setTimeout(() => els.note?.focus(), 40)
+  }
+
+  function toggleFloat() {
+    const x = curSplit()
+    if (!x) return
+    const on = floatId.value !== x.id
+    floatId.value = on ? x.id : null
+    toast('success', on ? 'Floating on desktop' : 'Stopped floating', on ? 'The note stays on top of other windows, even when Esky is closed.' : '')
+  }
+
+  function deleteNote() {
+    const x = curSplit() as Note | undefined
+    if (!x) return
+    const old = notes.value
+    notes.value = notes.value.filter(n => n.id !== x.id)
+    if (floatId.value === x.id) floatId.value = null
+    s.splitSel = 0
+    toast('info', 'Note deleted', trunc(x.body.split('\n')[0] || 'Untitled note', 40), { label: 'Undo', run: () => { notes.value = old } })
+  }
+
+  // ---------- hotkeys, aliases, confirm, onboarding ----------
+
+  function recordKey(e: KeyboardEvent) {
+    const h = s.hk!
+    const k = e.key
+    if (['Control', 'Shift', 'Alt', 'Meta', 'AltGraph'].includes(k)) return
+    const plain = !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey
+    if (plain && k === 'Escape') {
+      s.hk = null
+      return
+    }
+    if (plain && k === 'Enter') return saveHk()
+    if (plain && k === 'Backspace') {
+      s.hk = { ...h, combo: null, conflict: '', ownerId: null, reserved: false, note: '' }
+      return
+    }
+    if (!e.ctrlKey && !e.altKey && !e.metaKey) {
+      s.hk = { ...h, note: 'Include Ctrl, Alt or Win in the combination.' }
+      return
+    }
+    const combo = comboOf(e)
+    const str = combo.join('+')
+    if (str === 'Alt+Space') {
+      s.hk = { ...h, combo, reserved: true, ownerId: null, conflict: 'Alt + Space opens Esky, so it can’t be assigned to a command.', note: '' }
+      return
+    }
+    const owner = comboOwner(str, h.id)
+    s.hk = { ...h, combo, reserved: false, ownerId: owner, conflict: owner ? `Already used by ${ITEMS[owner]!.title}. Saving moves the hotkey here.` : '', note: '' }
+  }
+
+  function saveHk() {
+    const h = s.hk
+    if (!h || !h.combo || h.reserved) return
+    const hot = { ...hotkeys.value, [h.id]: h.combo }
+    if (h.ownerId) hot[h.ownerId] = []
+    hotkeys.value = hot
+    s.hk = null
+    toast('success', 'Hotkey saved', `${h.combo.join(' + ')} · ${h.title}${h.ownerId ? ` (removed from ${ITEMS[h.ownerId]!.title})` : ''}`)
+  }
+
+  function clearHk() {
+    const h = s.hk
+    if (!h) return
+    hotkeys.value = { ...hotkeys.value, [h.id]: [] }
+    s.hk = null
+    toast('info', 'Hotkey removed', h.title)
+  }
+
+  function saveAl() {
+    const al = s.al
+    if (!al) return
+    const v = al.value.trim().toLowerCase()
+    const owner = v ? aliasOwner(v, al.id) : null
+    const a = { ...aliases.value }
+    if (owner) delete a[owner]
+    if (v) a[al.id] = v
+    else delete a[al.id]
+    aliases.value = a
+    s.al = null
+    toast('success', v ? 'Alias saved' : 'Alias removed', v ? `Type “${v}” to open ${al.title}` : al.title)
+  }
+
+  function sysConfirm(id: string) {
+    const [title, desc, label, msg] = SYS_CONFIRM[id]!
+    return { title, desc, label, run: () => msg ? closeWith(msg) : toast('success', 'Recycle Bin emptied', '1.8 GB freed') }
+  }
+
+  function cfOk() {
+    const c = s.confirm
+    s.confirm = null
+    c?.run()
+  }
+
+  function onbNext() {
+    const o = s.onb
+    if (!o) return
+    if (o.step < 3) {
+      s.onb = { ...o, step: o.step + 1 }
+      return
+    }
+    s.onb = null
+    onboarded.value = true
+    settings.value = { ...settings.value, hotkey: ONB_HK[o.hk]![0], startLogin: !!o.tg.startup }
+    toast('success', 'Setup complete', `Press ${ONB_HK[o.hk]![0].join(' + ')} to open Esky.`)
+  }
+
+  function onbBack() {
+    const o = s.onb
+    if (o && o.step) s.onb = { ...o, step: o.step - 1 }
+    else onbSkip()
+  }
+
+  function onbSkip() {
+    s.onb = null
+    onboarded.value = true
+  }
+
+  // ---------- AI ----------
+
+  function startStream(target: Stream['target'], text: string, done?: () => void) {
+    clearInterval(tm)
+    s.stream = { target, text, pos: 0 }
+    tm = setInterval(() => {
+      const st = s.stream
+      if (!st) {
+        clearInterval(tm)
+        return
+      }
+      const pos = Math.min(st.text.length, st.pos + 3)
+      if (pos >= st.text.length) {
+        clearInterval(tm)
+        s.stream = { ...st, pos, done: true }
+        done?.()
+      } else {
+        s.stream = { ...st, pos }
+      }
+    }, 28)
+  }
+
+  function streamChat(text: string) {
+    startStream('chat', text, () => {
+      const ms = s.messages.slice()
+      const i = ms.length - 1
+      ms[i] = { ...ms[i]!, blocks: [...ms[i]!.blocks, { type: 'p', text }] }
+      s.messages = ms
+      s.stream = null
+    })
+  }
+
+  // Real AI goes through the user's Claude Code (useClaude). Chats are saved and continue the same
+  // Claude session; Quick AI runs once per command without a session.
+
+  let run: ClaudeRun | null = null
+  let agentNoticeShown = false
+
+  /** Stop whatever Claude is writing (Esc, new chat, switching chats or views). */
+  function cancelRun() {
+    run?.cancel()
+    run = null
+    if (s.stream && !s.stream.done) s.stream = null
+  }
+
+  const currentChat = () => chats.value.find(c => c.id === s.chatId)
+
+  /** Write the open conversation into the saved chat list (most recent first, 50 kept). */
+  function saveChat(patch: Partial<SavedChat> = {}) {
+    if (!s.chatId || !s.messages.length) return
+    const prev = currentChat()
+    const entry: SavedChat = { ...(prev ?? { id: s.chatId }), title: s.chatTitle, messages: s.messages, updated: Date.now(), ...patch }
+    chats.value = [entry, ...chats.value.filter(c => c.id !== s.chatId)].slice(0, 50)
+  }
+
+  /** Saved chats for the sidebar, grouped by day. */
+  const chatGroups = computed(() => {
+    const today = new Date().setHours(0, 0, 0, 0)
+    const groups: [string, (t: number) => boolean][] = [['Today', t => t >= today], ['Yesterday', t => t >= today - 864e5], ['Earlier', () => true]]
+    const left = [...chats.value].sort((a, b) => b.updated - a.updated)
+    return groups.map(([g, test]) => {
+      const items = left.filter(c => test(c.updated))
+      items.forEach(c => left.splice(left.indexOf(c), 1))
+      return { g, items }
+    }).filter(x => x.items.length)
+  })
+
+  /** Is Claude Code installed and signed in? Drives the "Connect Claude Code" screen. */
+  async function checkClaude() {
+    s.checking = true
+    const st = await claude.status()
+    s.checking = false
+    s.claudeStatus = st
+    s.setupStep = !st.installed ? 0 : !st.loggedIn ? 1 : 2
+    s.claudeReady = s.setupStep === 2
+    return st
+  }
+
+  function startNewChat() {
+    Object.assign(s, { chatId: `chat${Date.now()}`, messages: [], chatTitle: 'New chat', attach: null, attachText: '' })
+  }
+
+  function openSavedChat(id: string) {
+    const c = chats.value.find(x => x.id === id)
+    if (!c) return
+    cancelRun()
+    Object.assign(s, { chatId: c.id, messages: c.messages, chatTitle: c.title, stream: null, chatInput: '' })
+    focus()
+  }
+
+  function openChat(prompt: string) {
+    cancelRun()
+    Object.assign(s, { view: 'chat' as View, chatInput: '', approval: null, stream: null, actionsOpen: false, query: '' })
+    startNewChat()
+    checkClaude().then(() => {
+      if (!prompt) return
+      if (s.claudeReady) send(prompt)
+      else s.chatInput = prompt
+    })
+  }
+
+  function newChat() {
+    cancelRun()
+    startNewChat()
+    Object.assign(s, { approval: null })
+    focus()
+  }
+
+  function finishReply(chatId: string, text: string, error?: string) {
+    run = null
+    if (s.chatId !== chatId) return
+    const ms = s.messages.slice()
+    const i = ms.length - 1
+    ms[i] = { ...ms[i]!, blocks: error ? [{ type: 'p', text: `Couldn’t get a reply: ${error}` }] : markdownBlocks(text) }
+    Object.assign(s, { messages: ms, stream: null })
+    saveChat()
+    if (error) toast('error', 'Claude Code didn’t reply', error)
+  }
+
+  async function send(input?: string) {
+    const text = (input ?? s.chatInput).trim()
+    if (!text || (s.stream && !s.stream.done) || !s.claudeReady) return
+    if (s.agent && !agentNoticeShown) {
+      agentNoticeShown = true
+      toast('info', 'Agent mode isn’t connected yet', 'Claude can answer, but can’t run commands from Esky yet.')
+    }
+    const chat = currentChat()
+    const chatId = s.chatId
+    const attachText = s.attachText
+    const user: ChatMsg = { role: 'user', blocks: [{ type: 'p', text }], attach: s.attach }
+    const title = s.messages.length ? s.chatTitle : trunc(text, 40)
+    Object.assign(s, { messages: [...s.messages, user, { role: 'assistant', blocks: [] }], chatInput: '', attach: null, attachText: '', chatTitle: title, stream: { target: 'chat', text: '', pos: 0 } })
+    saveChat()
+    // A chat continued from Quick AI has no Claude session yet, so its first message carries the context.
+    const context = !chat?.sessionId && chat?.context ? `${chat.context}\n\n` : ''
+    const clip = attachText ? `Clipboard:\n\`\`\`\n${attachText}\n\`\`\`\n\n` : ''
+    let reply = ''
+    run = await claude.stream({ mode: 'chat', prompt: context + clip + text, system: CHAT_SYSTEM, sessionId: chat?.sessionId }, (e) => {
+      if (e.type === 'session') {
+        // Keep the latest session id so the next message continues this conversation.
+        chats.value = chats.value.map(c => c.id === chatId ? { ...c, sessionId: e.id, context: undefined } : c)
+      } else if (e.type === 'text') {
+        reply += e.text
+        if (s.chatId === chatId) s.stream = { target: 'chat', text: reply, pos: reply.length }
+      } else if (e.type === 'done') {
+        finishReply(chatId, e.text || reply)
+      } else if (e.type === 'error') {
+        finishReply(chatId, '', e.message)
+      }
+    })
+  }
+
+  async function runAi(cmd: string) {
+    cancelRun()
+    Object.assign(s, { view: 'aiResult', selection: s.selection || SEL, ai: { cmd, origOpen: false, result: '', error: '' }, followUp: '', actionsOpen: false, stream: { target: 'ai', text: '', pos: 0 } })
+    if (!s.claudeReady || !s.claudeStatus) await checkClaude()
+    if (!s.claudeReady) {
+      s.ai = { ...s.ai!, error: s.claudeStatus?.installed ? 'Claude Code isn’t signed in. Run “claude login” in a terminal.' : 'Claude Code isn’t installed. Run “npm install -g @anthropic-ai/claude-code”.' }
+      s.stream = null
+      return
+    }
+    let out = ''
+    const mine = () => s.view === 'aiResult' && s.ai?.cmd === cmd
+    run = await claude.stream({ mode: 'quick', prompt: s.selection!.text, system: QUICK_SYSTEM[cmd]! }, (e) => {
+      if (!mine()) return
+      if (e.type === 'text') {
+        out += e.text
+        s.stream = { target: 'ai', text: out, pos: out.length }
+      } else if (e.type === 'done') {
+        const result = (e.text || out).trim()
+        s.ai = { ...s.ai!, result }
+        s.stream = { target: 'ai', text: result, pos: result.length, done: true }
+        run = null
+      } else if (e.type === 'error') {
+        s.ai = { ...s.ai!, error: e.message }
+        s.stream = null
+        run = null
+      }
+    })
+  }
+
+  function setTool(status: 'running' | 'done' | 'denied', out?: string[]) {
+    const ms = s.messages.slice()
+    const i = ms.length - 1
+    ms[i] = { ...ms[i]!, blocks: ms[i]!.blocks.map((b): ChatBlock => b.type === 'tool' && (b.status === 'pending' || b.status === 'running') ? { ...b, status, out } : b) }
+    s.messages = ms
+  }
+
+  function runTool() {
+    s.approval = null
+    setTool('running')
+    setTimeout(() => {
+      setTool('done', TOOL_OUT)
+      streamChat(AFTER_TOOL)
+    }, 1100)
+  }
+
+  function approve(i: number) {
+    if (i === 0) runTool()
+    else if (i === 1) {
+      s.alwaysAllow = true
+      runTool()
+      toast('info', 'Always allowed', 'php artisan migrate will run without asking.')
+    } else {
+      s.approval = null
+      setTool('denied')
+      streamChat(DENIED)
+    }
+  }
+
+  async function checkAgain() {
+    if (s.checking) return
+    const st = await checkClaude()
+    if (s.claudeReady) toast('success', 'Claude Code connected', `Signed in as ${st.email ?? 'your Claude account'}`)
+  }
+
+  /** Attach whatever text is on the clipboard to the next message. */
+  async function attachClip() {
+    const text = await readClipboardText()
+    if (!text.trim()) {
+      toast('info', 'Nothing to attach', 'Copy some text first, then attach it.')
+      return
+    }
+    s.attach = trunc(text.replace(/\s+/g, ' ').trim(), 40)
+    s.attachText = text
+    focus()
+  }
+
+  function openDeploy(server: Server, from: View) {
+    go('deploy', { server, deployFrom: from, deploy: { site: server.sites[0]!, branch: 'main', migrate: true }, branchErr: '', deploying: false })
+  }
+
+  function submitDeploy() {
+    if (s.deploying) return
+    const parsed = DeploySchema.safeParse(s.deploy)
+    if (!parsed.success) {
+      s.branchErr = parsed.error.issues[0]?.message ?? 'Branch is required'
+      return
+    }
+    const br = parsed.data.branch
+    s.deploying = true
+    s.branchErr = ''
+    setTimeout(() => {
+      s.deploying = false
+      const d = s.deploy
+      if (BRANCHES.includes(br)) toast('success', `Deployed ${d.site}`, `${br} · ${d.migrate ? 'migrations ran · ' : ''}finished in 38s`)
+      else toast('error', 'Deployment failed', `Branch “${br}” was not found on origin.`, { label: 'Retry', run: () => submitDeploy() })
+    }, 1400)
+  }
+
+  const toggleOrig = () => {
+    if (s.ai) s.ai = { ...s.ai, origOpen: !s.ai.origOpen }
+  }
+
+  /** Quick AI → AI Chat: the result becomes a conversation you can keep going. */
+  function continueInChat() {
+    const c = aiCmd()
+    const result = s.ai?.result ?? ''
+    const selected = (s.selection || SEL).text
+    const follow = s.followUp
+    cancelRun()
+    startNewChat()
+    Object.assign(s, { view: 'chat', stream: null, approval: null, chatTitle: c.title, chatInput: '', messages: [{ role: 'user', blocks: [{ type: 'p', text: `${c.title}:\n${selected}` }] }, { role: 'assistant', blocks: markdownBlocks(result) }] })
+    saveChat({ context: `Earlier I asked you to “${c.title}” for this text:\n"""\n${selected}\n"""\nYou replied:\n"""\n${result}\n"""` })
+    checkClaude().then(() => {
+      if (follow.trim()) send(follow)
+    })
+  }
+
+  // ---------- actions ----------
+
+  function runAction(id: string) {
+    s.actionsOpen = false
+    const e = s.view === 'search' ? searchModel.value.flat[s.sel] : null
+    const c = s.view === 'clipboard' ? curClip() : null
+    const sv = s.view === 'forgeList' ? forgeModel.value.flat[s.forgeSel] : s.server
+    switch (id) {
+      case 'open': e?.run(); break
+      case 'admin': if (e) closeWith(`Launched ${e.title} as administrator`); break
+      case 'reveal': if (e) closeWith(`Revealed ${e.title} in File Explorer`, () => e.path && revealPath(e.path)); break
+      case 'path': if (e) {
+        copyText(e.path || e.title)
+        toast('success', 'Path copied', e.path || e.title)
+      } break
+      case 'pin': {
+        if (!e || !e.id) {
+          toast('info', 'This result can\'t be pinned')
+          break
+        }
+        const fav = favs.value.includes(e.id)
+        favs.value = fav ? favs.value.filter(x => x !== e.id) : [...favs.value, e.id]
+        toast('success', fav ? 'Removed from Favourites' : 'Pinned to Favourites', e.title)
+        break
+      }
+      case 'alias':
+      case 'hotkey': {
+        const tid = s.view === 'search' ? e?.id : curSplit()?.id
+        if (!tid || !ITEMS[tid]) {
+          toast('info', `This result can't have ${id === 'alias' ? 'an alias' : 'a hotkey'}`)
+          break
+        }
+        if (id === 'alias') s.al = { id: tid, title: ITEMS[tid]!.title, value: aliases.value[tid] || '' }
+        else s.hk = { id: tid, title: ITEMS[tid]!.title, combo: null, conflict: '' }
+        break
+      }
+      case 'split': runSplit(); break
+      case 'sncopy': {
+        const x = curSplit() as Snippet | undefined
+        if (x) {
+          copyText(x.text)
+          toast('success', 'Snippet copied', x.name)
+        }
+        break
+      }
+      case 'snexpand':
+        s.expand = !s.expand
+        toast('info', !s.expand ? 'Text expansion off' : 'Text expansion on', !s.expand ? 'Keywords no longer expand as you type.' : 'Type a keyword in any app to expand it.')
+        break
+      case 'qcopy': {
+        const x = curSplit() as Quicklink | undefined
+        if (x) {
+          const url = x.arg && s.args[x.id] ? resolveQ(x, s.args[x.id]!) : x.url
+          copyText(url)
+          toast('success', 'URL copied', url)
+        }
+        break
+      }
+      case 'fwith': {
+        const x = curSplit() as FileEntry | undefined
+        if (x) closeWith(`Opened ${x.name} in Visual Studio Code`)
+        break
+      }
+      case 'fpath': {
+        const x = curSplit() as FileEntry | undefined
+        if (x) {
+          copyText(`${x.dir}\\${x.name}`)
+          toast('success', 'Path copied', `${x.dir}\\${x.name}`)
+        }
+        break
+      }
+      case 'freveal': {
+        const x = curSplit() as FileEntry | undefined
+        if (x) closeWith(`Revealed ${x.name} in File Explorer`, () => revealPath(`${x.dir}\\${x.name}`))
+        break
+      }
+      case 'fattach': {
+        const x = curSplit() as FileEntry | undefined
+        if (!x) break
+        clearInterval(tm)
+        Object.assign(s, { view: 'chat', messages: [], chatTitle: 'New chat', attach: x.name, stream: null, approval: null, chatInput: '' })
+        break
+      }
+      case 'xuninstall': {
+        const x = curSplit() as ExtensionDef | undefined
+        if (x && installed.value.includes(x.id)) askUninstall(x)
+        break
+      }
+      case 'nnew': newNote(); break
+      case 'nfloat': toggleFloat(); break
+      case 'ndelete': deleteNote(); break
+      case 'epaste': {
+        const x = curEmoji()
+        if (x) closeWith(`Pasted ${x.e}`)
+        break
+      }
+      case 'ecopy': {
+        const x = curEmoji()
+        if (x) {
+          copyText(x.e)
+          toast('success', `Copied ${x.e}`, x.n)
+        }
+        break
+      }
+      case 'disable': {
+        if (!e || !e.id) {
+          toast('info', 'This result can\'t be disabled')
+          break
+        }
+        const id2 = e.id
+        disabled.value = [...disabled.value, id2]
+        s.sel = 0
+        toast('info', 'Result disabled', e.title, { label: 'Undo', run: () => { disabled.value = disabled.value.filter(x => x !== id2) } })
+        break
+      }
+      case 'cpaste': if (c) closeWith(`Pasted “${trunc(c.preview, 40)}”`); break
+      case 'ccopy': if (c) {
+        copyText(c.full || c.preview)
+        toast('success', 'Copied to clipboard', trunc(c.preview, 48))
+      } break
+      case 'cpin': {
+        if (!c) break
+        clip.value = clip.value.map(x => x.id === c.id ? { ...x, pinned: !x.pinned } : x)
+        nextTick(() => { s.clipSel = Math.max(0, clipModel.value.flat.findIndex(x => x.id === c.id)) })
+        toast('success', c.pinned ? 'Unpinned' : 'Pinned', trunc(c.preview, 48))
+        break
+      }
+      case 'cdelete': {
+        if (!c) break
+        const old = clip.value
+        const next = clip.value.filter(x => x.id !== c.id)
+        clip.value = next
+        s.clipSel = Math.max(0, Math.min(s.clipSel, next.length - 1))
+        toast('info', 'Deleted from history', trunc(c.preview, 48), { label: 'Undo', run: () => { clip.value = old } })
+        break
+      }
+      case 'fopen': if (sv) go('forgeDetail', { server: sv }); break
+      case 'fdeploy': if (sv) openDeploy(sv, s.view); break
+      case 'fforge': if (sv) closeWith(`Opened ${sv.name} in Laravel Forge`, () => openUrl('https://forge.laravel.com/servers')); break
+      case 'fip': if (sv) {
+        copyText(sv.ip)
+        toast('success', 'IP address copied', sv.ip)
+      } break
+      case 'fssh': if (sv) closeWith(`Opened SSH session to ${sv.name} in Windows Terminal`); break
+      case 'newchat': newChat(); break
+      case 'togglechats': s.showChats = !s.showChats; break
+      case 'attach': attachClip(); break
+      case 'agent': s.agent = !s.agent; break
+      case 'aipaste':
+        // Typing into the other app isn't wired up yet, so the result goes on the clipboard.
+        if (s.ai?.result) closeWith(`Copied the ${aiCmd().title.toLowerCase()} result. Paste it with Ctrl V.`, () => copyText(s.ai!.result!))
+        break
+      case 'aicopy':
+        if (s.ai?.result) {
+          copyText(s.ai.result)
+          toast('success', 'Copied result', aiCmd().title)
+        }
+        break
+      case 'aichat': continueInChat(); break
+      case 'regen': runAi(aiCmd().id); break
+      case 'deploy': submitDeploy(); break
+      case 'back': back(); break
+      case 'hopen': {
+        const x = curSite()
+        if (x) openSite(x)
+        break
+      }
+      case 'hcode': {
+        const x = curSite()
+        if (x) closeWith(`Opened ${x.name} in ${herdEditor().name}`, () => openUrl(herdEditor().url(x.path)))
+        break
+      }
+      case 'hreveal': {
+        const x = curSite()
+        if (x) closeWith(`Revealed ${x.name} in File Explorer`, () => revealPath(x.path))
+        break
+      }
+      case 'hurl': {
+        const x = curSite()
+        if (x) {
+          copyText(x.url)
+          toast('success', 'URL copied', x.url)
+        }
+        break
+      }
+      case 'hpath': {
+        const x = curSite()
+        if (x) {
+          copyText(x.path)
+          toast('success', 'Path copied', x.path)
+        }
+        break
+      }
+      case 'hreload':
+        loadHerd().then(() => toast('success', 'Herd sites reloaded', `${herdSites.value.length} sites`))
+        break
+      case 'gopen': {
+        const r = curRepo()
+        if (r) closeWith(`Opened ${r.name} in ${editorFor('git').name}`, () => openUrl(editorFor('git').url(r.path)))
+        break
+      }
+      case 'gterm': {
+        const r = curRepo()
+        if (r) closeWith(`Opened a terminal in ${r.name}`, () => openTerminal(r.path).catch(e => toast('error', 'Couldn’t open a terminal', String(e))))
+        break
+      }
+      case 'greveal': {
+        const r = curRepo()
+        if (r) closeWith(`Revealed ${r.name} in File Explorer`, () => revealPath(r.path))
+        break
+      }
+      case 'gpath': {
+        const r = curRepo()
+        if (r) {
+          copyText(r.path)
+          toast('success', 'Path copied', r.path)
+        }
+        break
+      }
+      case 'greload':
+        loadGit().then(() => toast('success', 'Checked again', `${gitModel.value.flat.length} of ${gitModel.value.checked} repos need attention`))
+        break
+      case 'pwcopy': copyPassword(); break
+      case 'pwnew': pw.regenerate(); break
+      case 'pwtype': pw.setType(pw.opts.value.type === 'password' ? 'passphrase' : 'password'); break
+      case 'dcopy': {
+        const c = curSense()
+        if (c) {
+          const t = `${dict.entry!.word} (${c.pos.toLowerCase()}): ${c.sense.text}`
+          copyText(t)
+          toast('success', 'Definition copied', trunc(t, 60))
+        }
+        break
+      }
+      case 'dword':
+        if (dict.entry) {
+          copyText(dict.entry.word)
+          toast('success', 'Word copied', dict.entry.word)
+        }
+        break
+      case 'dopen':
+        if (dict.entry) closeWith(`Opened “${dict.entry.word}” in Wiktionary`, () => openUrl(dict.entry!.url))
+        break
+    }
+  }
+
+  const openActions = () => Object.assign(s, { actionsOpen: true, actionsQuery: '', actionsSel: 0 })
+
+  // ---------- key map (replicates onKey in the prototype) ----------
+
+  function onKey(e: KeyboardEvent) {
+    const k = e.key
+    const ctrl = e.ctrlKey || e.metaKey
+    const sh = e.shiftKey
+    const kl = (k || '').toLowerCase()
+    const stop = () => {
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    const isFloat = (e.target as HTMLElement | null)?.dataset?.float
+    if (isFloat && !(e.altKey && e.code === 'Space')) return
+    if (s.hk && s.open) {
+      stop()
+      recordKey(e)
+      return
+    }
+    if (e.altKey && e.code === 'Space' && settings.value.hotkey.join('+') === 'Alt+Space') {
+      stop()
+      if (s.open) s.open = false
+      else openWin()
+      return
+    }
+    if (!s.open) {
+      if (e.ctrlKey || e.altKey || e.metaKey) {
+        const id = comboOwner(comboOf(e).join('+'), null)
+        if (id) {
+          stop()
+          activate(id)
+        }
+      }
+      return
+    }
+    if (s.onb) {
+      if (k === 'Enter') {
+        stop()
+        onbNext()
+      } else if (k === 'Escape') {
+        stop()
+        onbBack()
+      } else if (s.onb.step === 0 && (k === 'ArrowRight' || k === 'ArrowLeft')) {
+        stop()
+        s.onb = { ...s.onb, hk: (s.onb.hk + (k === 'ArrowRight' ? 1 : 2)) % 3 }
+      }
+      return
+    }
+    if (s.confirm) {
+      if (k === 'Enter') {
+        stop()
+        cfOk()
+      } else if (k === 'Escape') {
+        stop()
+        s.confirm = null
+      }
+      return
+    }
+    if (s.al) {
+      if (k === 'Enter') {
+        stop()
+        saveAl()
+      } else if (k === 'Escape') {
+        stop()
+        s.al = null
+      }
+      return
+    }
+    if (s.approval) {
+      if (k === 'ArrowRight' || (k === 'Tab' && !sh)) {
+        stop()
+        s.approvalSel = (s.approvalSel + 1) % 3
+      } else if (k === 'ArrowLeft' || (k === 'Tab' && sh)) {
+        stop()
+        s.approvalSel = (s.approvalSel + 2) % 3
+      } else if (k === 'Enter') {
+        stop()
+        approve(ctrl ? 1 : s.approvalSel)
+      } else if (k === 'Escape') {
+        stop()
+        approve(2)
+      }
+      return
+    }
+    if (s.actionsOpen) {
+      const n = actionsModel.value.list.length
+      if (k === 'ArrowDown') {
+        stop()
+        s.actionsSel = (s.actionsSel + 1) % Math.max(1, n)
+      } else if (k === 'ArrowUp') {
+        stop()
+        s.actionsSel = (s.actionsSel - 1 + n) % Math.max(1, n)
+      } else if (k === 'Enter') {
+        stop()
+        const a = actionsModel.value.list[s.actionsSel]
+        if (a) runAction(a.id)
+      } else if (k === 'Escape' || (ctrl && kl === 'k')) {
+        stop()
+        s.actionsOpen = false
+      }
+      return
+    }
+    if (ctrl && kl === 'k' && !sh) {
+      stop()
+      openActions()
+      return
+    }
+    if (k === 'Escape' && (e.target === els.note || e.target === els.arg)) {
+      stop()
+      els.top?.focus()
+      return
+    }
+    if (k === 'Escape') {
+      stop()
+      back()
+      return
+    }
+    if (ctrl && k === ',') {
+      stop()
+      openSettings()
+      return
+    }
+    const v = s.view
+    if (v === 'search') {
+      const n = searchModel.value.flat.length
+      if (k === 'ArrowDown') {
+        stop()
+        s.sel = (s.sel + 1) % Math.max(1, n)
+        return
+      }
+      if (k === 'ArrowUp') {
+        stop()
+        s.sel = (s.sel - 1 + n) % Math.max(1, n)
+        return
+      }
+      if (k === 'Tab') {
+        stop()
+        const ql = s.query.trim().toLowerCase()
+        if (ql === 'ai' || ql.startsWith('ai ')) openChat(s.query.trim().slice(2).trim())
+        return
+      }
+      if (k === 'Enter') {
+        stop()
+        if (ctrl && sh) return runAction('admin')
+        searchModel.value.flat[s.sel]?.run()
+        return
+      }
+      if (ctrl && !sh && /^[1-5]$/.test(k) && s.selection) {
+        stop()
+        runAi(AI_CMDS[+k - 1]!.id)
+        return
+      }
+      if (ctrl && sh && kl === 'v') {
+        stop()
+        go('clipboard', { clipQuery: '', clipSel: 0 })
+        return
+      }
+      if (ctrl && sh) {
+        const a = ({ e: 'reveal', c: 'path', p: 'pin', a: 'alias', h: 'hotkey', d: 'disable' } as Record<string, string>)[kl]
+        if (a) {
+          stop()
+          runAction(a)
+        }
+      }
+      return
+    }
+    if (SPLIT[v]) {
+      const inNote = e.target === els.note
+      const inArg = e.target === els.arg
+      const n = splitModel.value.flat.length
+      const combo = (ctrl ? 'ctrl+' : '') + (sh ? 'shift+' : '') + kl
+      const act = (SPLIT_KEYS_FOR(v))[combo]
+      if (act && !(inNote && combo === 'ctrl+backspace') && !(kl === 'c' && hasInputSel())) {
+        stop()
+        runAction(act)
+        return
+      }
+      if (inNote) return
+      if (k === 'ArrowDown' && n) {
+        stop()
+        s.splitSel = Math.min(n - 1, s.splitSel + 1)
+        return
+      }
+      if (k === 'ArrowUp' && n) {
+        stop()
+        s.splitSel = Math.max(0, s.splitSel - 1)
+        return
+      }
+      if (k === 'Enter' && n) {
+        stop()
+        runSplit()
+        return
+      }
+      if (k === 'Tab' && !sh) {
+        if (els.arg && !inArg) {
+          stop()
+          els.arg.focus()
+        } else if (v === 'notes' && els.note) {
+          stop()
+          els.note.focus()
+        } else if (inArg) {
+          stop()
+          els.top?.focus()
+        }
+      }
+      return
+    }
+    if (v === 'emoji') {
+      const n = emojiModel.value.flat.length
+      const mv = (d: number) => {
+        stop()
+        s.splitSel = Math.max(0, Math.min(n - 1, s.splitSel + d))
+      }
+      if (!n) return
+      if (k === 'ArrowRight') return mv(1)
+      if (k === 'ArrowLeft') return mv(-1)
+      if (k === 'ArrowDown') return mv(12)
+      if (k === 'ArrowUp') return mv(-12)
+      if (k === 'Enter') {
+        stop()
+        runAction('epaste')
+        return
+      }
+      if (ctrl && kl === 'c' && !hasInputSel()) {
+        stop()
+        runAction('ecopy')
+      }
+      return
+    }
+    if (v === 'clipboard') {
+      const n = clipModel.value.flat.length
+      if (k === 'ArrowDown' && n) {
+        stop()
+        s.clipSel = Math.min(n - 1, s.clipSel + 1)
+      } else if (k === 'ArrowUp' && n) {
+        stop()
+        s.clipSel = Math.max(0, s.clipSel - 1)
+      } else if (k === 'Enter' && n) {
+        stop()
+        runAction('cpaste')
+      } else if (ctrl && kl === 'c' && n && !hasInputSel()) {
+        stop()
+        runAction('ccopy')
+      } else if (ctrl && kl === 'p' && n) {
+        stop()
+        runAction('cpin')
+      } else if (ctrl && k === 'Backspace' && n) {
+        stop()
+        runAction('cdelete')
+      } else if (ctrl && kl === 'o' && n) {
+        const c = curClip()
+        if (c?.type === 'link') {
+          stop()
+          closeWith(`Opened ${c.host} in your browser`, () => openUrl(c.preview))
+        }
+      }
+      return
+    }
+    if (v === 'chat') {
+      if (!s.claudeReady) {
+        if (k === 'Enter') {
+          stop()
+          checkAgain()
+        }
+        return
+      }
+      if (ctrl && kl === 'b') {
+        stop()
+        s.showChats = !s.showChats
+        return
+      }
+      if (ctrl && kl === 'n') {
+        stop()
+        newChat()
+        return
+      }
+      if (ctrl && sh && kl === 'v') {
+        stop()
+        attachClip()
+        return
+      }
+      if (k === 'Enter' && !sh && e.target === els.chat) {
+        stop()
+        send()
+        return
+      }
+      return
+    }
+    if (v === 'aiResult') {
+      if (k === 'Enter') {
+        stop()
+        runAction('aipaste')
+      } else if (ctrl && kl === 'c' && !hasInputSel()) {
+        stop()
+        runAction('aicopy')
+      } else if (k === 'Tab') {
+        stop()
+        runAction('aichat')
+      } else if (ctrl && kl === 'r') {
+        stop()
+        runAction('regen')
+      } else if (ctrl && kl === 'o') {
+        stop()
+        toggleOrig()
+      }
+      return
+    }
+    if (v === 'forgeList') {
+      const n = forgeModel.value.flat.length
+      if (k === 'ArrowDown' && n) {
+        stop()
+        s.forgeSel = (s.forgeSel + 1) % n
+      } else if (k === 'ArrowUp' && n) {
+        stop()
+        s.forgeSel = (s.forgeSel - 1 + n) % n
+      } else if (k === 'Enter' && n) {
+        stop()
+        runAction('fopen')
+      } else if (ctrl && kl === 'd' && n) {
+        stop()
+        runAction('fdeploy')
+      } else if (ctrl && kl === 'o' && n) {
+        stop()
+        runAction('fforge')
+      } else if (ctrl && sh && kl === 'c') {
+        stop()
+        runAction('fip')
+      } else if (ctrl && sh && kl === 's') {
+        stop()
+        runAction('fssh')
+      }
+      return
+    }
+    if (v === 'herdList') {
+      const n = herdModel.value.flat.length
+      if (k === 'ArrowDown' && n) {
+        stop()
+        s.herdSel = (s.herdSel + 1) % n
+      } else if (k === 'ArrowUp' && n) {
+        stop()
+        s.herdSel = (s.herdSel - 1 + n) % n
+      } else if (k === 'Enter' && n) {
+        stop()
+        runAction('hopen')
+      } else if (ctrl && !sh && kl === 'o' && n) {
+        stop()
+        runAction('hcode')
+      } else if (ctrl && sh && kl === 'e' && n) {
+        stop()
+        runAction('hreveal')
+      } else if (ctrl && sh && kl === 'c' && n) {
+        stop()
+        runAction('hurl')
+      } else if (ctrl && sh && kl === 'p' && n) {
+        stop()
+        runAction('hpath')
+      } else if (ctrl && kl === 'r') {
+        stop()
+        runAction('hreload')
+      }
+      return
+    }
+    if (v === 'gitList') {
+      const n = gitModel.value.flat.length
+      if (k === 'ArrowDown' && n) {
+        stop()
+        s.gitSel = (s.gitSel + 1) % n
+      } else if (k === 'ArrowUp' && n) {
+        stop()
+        s.gitSel = (s.gitSel - 1 + n) % n
+      } else if (k === 'Enter' && n) {
+        stop()
+        runAction('gopen')
+      } else if (ctrl && !sh && kl === 't' && n) {
+        stop()
+        runAction('gterm')
+      } else if (ctrl && sh && kl === 'e' && n) {
+        stop()
+        runAction('greveal')
+      } else if (ctrl && sh && kl === 'c' && n) {
+        stop()
+        runAction('gpath')
+      } else if (ctrl && kl === 'r') {
+        stop()
+        runAction('greload')
+      }
+      return
+    }
+    if (v === 'password') {
+      if (k === 'Enter') {
+        stop()
+        runAction('pwcopy')
+      } else if (ctrl && !sh && kl === 'c' && !hasInputSel()) {
+        stop()
+        copyPassword(false)
+      } else if (ctrl && kl === 'r') {
+        stop()
+        runAction('pwnew')
+      } else if (ctrl && kl === 't') {
+        stop()
+        runAction('pwtype')
+      }
+      return
+    }
+    if (v === 'dictionary') {
+      const n = dictFlat.value.length
+      if (k === 'ArrowDown' && n) {
+        stop()
+        s.dictSel = Math.min(n - 1, s.dictSel + 1)
+      } else if (k === 'ArrowUp' && n) {
+        stop()
+        s.dictSel = Math.max(0, s.dictSel - 1)
+      } else if (k === 'Enter' && n) {
+        stop()
+        runAction('dcopy')
+      } else if (ctrl && !sh && kl === 'c' && n && !hasInputSel()) {
+        stop()
+        runAction('dcopy')
+      } else if (ctrl && sh && kl === 'c' && dict.entry) {
+        stop()
+        runAction('dword')
+      } else if (ctrl && kl === 'o' && dict.entry) {
+        stop()
+        runAction('dopen')
+      }
+      return
+    }
+    if (v === 'forgeDetail') {
+      if (k === 'Enter' || (ctrl && kl === 'd')) {
+        stop()
+        openDeploy(s.server, 'forgeDetail')
+      } else if (ctrl && kl === 'o') {
+        stop()
+        runAction('fforge')
+      } else if (ctrl && sh && kl === 'c') {
+        stop()
+        runAction('fip')
+      }
+      return
+    }
+    if (v === 'deploy') {
+      if (ctrl && k === 'Enter') {
+        stop()
+        submitDeploy()
+      }
+    }
+  }
+
+  // ---------- footer ----------
+
+  const footer = computed((): { app: { icon: string, tile: string, name: string }, hints: Hint[] } => {
+    const v = s.view
+    const hint = (label: string, keys: string[], run?: (() => void) | null, primary?: boolean): Hint => ({ label, keys, run: run || (() => {}), primary })
+    const act = hint('Actions', ['Ctrl', 'K'], openActions)
+    const LP = { icon: 'esky', tile: '', name: 'Esky' }
+    const FORGE = { icon: 'i-lucide-hammer', tile: '#EA580C', name: 'Laravel Forge' }
+    if (v === 'search') {
+      const m = searchModel.value
+      const cur = m.flat[Math.min(s.sel, Math.max(0, m.flat.length - 1))]
+      const lbl = !cur ? 'Open' : cur.kind === 'card' ? 'Copy' : cur.kind === 'chat' ? 'Chat' : cur.kind === 'dict' ? 'Define' : cur.kind === 'snip' ? 'Paste' : cur.kind === 'win' ? 'Apply' : ['cmd', 'ai', 'sys'].includes(cur.kind || '') ? 'Run' : 'Open'
+      return {
+        app: s.selection ? { icon: 'i-lucide-message-square', tile: '#4A154B', name: 'Slack · text selected' } : LP,
+        hints: [hint(lbl, cur && cur.kind === 'chat' && s.query.trim().toLowerCase().startsWith('ai') ? ['Tab'] : ['↵'], () => cur?.run(), true), act]
+      }
+    }
+    if (v === 'clipboard') return { app: { icon: 'i-lucide-clipboard-list', tile: '#0D9488', name: 'Clipboard History' }, hints: [hint('Paste', ['↵'], () => runAction('cpaste'), true), hint('Copy', ['Ctrl', 'C'], () => runAction('ccopy')), hint('Pin', ['Ctrl', 'P'], () => runAction('cpin')), hint('Delete', ['Ctrl', '⌫'], () => runAction('cdelete'))] }
+    if (v === 'chat') {
+      return { app: { icon: 'i-lucide-sparkles', tile: 'var(--accent)', name: 'AI Chat' }, hints: s.claudeReady
+        ? [hint('Send', ['↵'], () => send(), true), hint('New line', ['Shift', '↵']), hint('Chats', ['Ctrl', 'B'], () => { s.showChats = !s.showChats }), act]
+        : [hint('Check again', ['↵'], checkAgain, true), hint('Back', ['Esc'], back)] }
+    }
+    if (v === 'aiResult') return { app: { icon: 'i-lucide-sparkles', tile: 'var(--accent)', name: 'Quick AI' }, hints: [hint('Paste', ['↵'], () => runAction('aipaste'), true), hint('Copy', ['Ctrl', 'C'], () => runAction('aicopy')), hint('Continue in Chat', ['Tab'], () => runAction('aichat')), hint('Regenerate', ['Ctrl', 'R'], () => runAction('regen'))] }
+    if (v === 'herdList') return { app: { icon: 'i-lucide-feather', tile: '#E11D48', name: 'Laravel Herd' }, hints: [hint('Open', ['↵'], () => runAction('hopen'), true), hint(herdEditor().short, ['Ctrl', 'O'], () => runAction('hcode')), act] }
+    if (v === 'gitList') return { app: { icon: 'i-lucide-git-branch', tile: '#F05032', name: 'Git' }, hints: [hint(editorFor('git').short, ['↵'], () => runAction('gopen'), true), hint('Terminal', ['Ctrl', 'T'], () => runAction('gterm')), act] }
+    if (v === 'password') return { app: { icon: 'i-lucide-key-round', tile: '#175DDC', name: 'Password Generator' }, hints: [hint('Copy', ['↵'], () => runAction('pwcopy'), true), hint('Regenerate', ['Ctrl', 'R'], () => runAction('pwnew')), act] }
+    if (v === 'dictionary') return { app: { icon: 'i-lucide-book-a', tile: '#0369A1', name: 'Dictionary' }, hints: [hint('Copy', ['↵'], () => runAction('dcopy'), true), hint('Wiktionary', ['Ctrl', 'O'], () => runAction('dopen')), act] }
+    if (v === 'forgeList') return { app: FORGE, hints: [hint('Show Details', ['↵'], () => runAction('fopen'), true), hint('Deploy', ['Ctrl', 'D'], () => runAction('fdeploy')), act] }
+    if (v === 'forgeDetail') return { app: FORGE, hints: [hint('Deploy Site', ['↵'], () => openDeploy(s.server, 'forgeDetail'), true), hint('Open in Forge', ['Ctrl', 'O'], () => runAction('fforge')), act] }
+    if (v === 'deploy') return { app: FORGE, hints: [hint('Deploy', ['Ctrl', '↵'], submitDeploy, true), hint('Next field', ['Tab']), hint('Back', ['Esc'], back)] }
+    if (SPLIT[v]) {
+      const [app, defs] = SPLIT_FOOT_FOR(v as SplitView)
+      const x = curSplit()
+      const hints = v === 'store' ? [[x && installed.value.includes(x.id) ? 'Configure' : 'Install', ['↵'], 'split'] as [string, string[], string]] : defs
+      return { app, hints: [...hints.map(([l, ks, id], j) => hint(l, ks, id ? () => runAction(id) : null, j === 0)), act] }
+    }
+    if (v === 'emoji') {
+      const ce = curEmoji()
+      return { app: { icon: 'i-lucide-smile', tile: '#CA8A04', name: ce ? `${ce.e}  ${ce.n}` : 'Emoji & Symbols' }, hints: [hint('Paste', ['↵'], () => runAction('epaste'), true), hint('Copy', ['Ctrl', 'C'], () => runAction('ecopy')), act] }
+    }
+    return { app: LP, hints: [] }
+  })
+
+  // ---------- side effects ----------
+
+  watch(() => [s.view, s.open, s.actionsOpen, s.approval, !s.al], () => focus())
+
+  watch(() => s.open, (o) => {
+    if (o) showWindow(settings.value.activeMonitor)
+    else hideWindow()
+  })
+
+  watch(floatId, id => floatNote(id))
+
+  ready.then(() => {
+    if (!onboarded.value) Object.assign(s, { open: true, onb:{ step: 0, hk: 0, tg: { ...ONB_TG } } })
+    if (floatId.value) floatNote(floatId.value)
+    // Herd sites also appear in root search.
+    if (exts.isActive('herd')) loadHerd()
+    // A different Herd config folder (set in Settings) means a different site list.
+    watch(() => [exts.prefsFor('herd').configDir, exts.isActive('herd')], ([, on]) => {
+      if (on) loadHerd()
+    })
+  })
+
+  return {
+    s, els, ready, favs, disabled, usage, recent, aliases, hotkeys, installed, notes, clip, floatId, settings,
+    searchModel, clipModel, forgeModel, splitModel, emojiModel, actionsModel, footer,
+    herd, herdModel, openSite, git, gitModel, pw, copyPassword, dict, dictFlat, openDictionary,
+    chats, chatGroups, openSavedChat, claude,
+    curClip, curSplit, curEmoji, detail, aiCmd, rowKeys, comboOwner, aliasOwner,
+    toast, focus, go, openWin, back, closeWith, activate, runAction, runSplit, openActions,
+    onKey, saveHk, clearHk, saveAl, cfOk, sysConfirm, openChat, runAi, onbNext, onbBack, onbSkip, approve, checkAgain, attachClip, newChat, send,
+    submitDeploy, openDeploy, toggleOrig, editNote, theme
+  }
+}
+
+const SPLIT_KEYS_FOR = (v: string) => SPLIT_KEYS[v] || {}
+const SPLIT_FOOT_FOR = (v: SplitView) => SPLIT_FOOT[v]
+
+let launcher: ReturnType<typeof createLauncher> | null = null
+
+export function useLauncher() {
+  launcher ??= createLauncher()
+  return launcher
+}
