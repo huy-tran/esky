@@ -76,5 +76,7 @@ const ghostBtn = 'h-8 px-3 gap-1.5 rounded-[6px] ring-0 border border-(--bd) bg-
     </div>
 
     <UButton v-if="editing !== 'new'" icon="i-lucide-plus" label="New quicklink" color="neutral" variant="outline" :class="`${ghostBtn} self-start`" :ui="{ leadingIcon: 'size-[13px]' }" @click="startNew" />
+
+    <SettingsFallbacksPanel class="mt-4" />
   </div>
 </template>

@@ -608,11 +608,17 @@ function createLauncher() {
         const fileRows = rootFiles.value.slice(0, 5).map((x): Row => ({ key: `file:${x.id}`, title: x.name, sub: x.dir, ...kindOf(x), kind: 'file', label: 'File', hl: ql, path: x.id, run: () => closeWith(`Opened ${x.name}`, () => openUrl(x.id)) }))
         if (fileRows.length) sections.push({ title: 'Files', rows: fileRows })
       }
-      const web: Row[] = [
-        { key: 'g', title: `Search Google for “${q}”`, sub: 'Web', icon: 'i-lucide-globe', tile: '#2563EB', run: () => closeWith(`Searching Google for “${q}”`, () => openUrl(`https://www.google.com/search?q=${encodeURIComponent(q)}`)) },
-        { key: 'askq', title: `Ask AI “${q}”`, sub: 'Claude', icon: 'i-lucide-sparkles', kind: 'chat', run: () => openChat(q) },
-        ...(/^[a-z][a-z'-]*$/i.test(q) && !card ? [defineRow(q)] : [])
-      ]
+      // Settings → Quicklinks → When nothing matches.
+      const web: Row[] = settings.value.fallbacks.flatMap((id): Row[] => {
+        if (id === 'google') return [{ key: 'g', title: `Search Google for “${q}”`, sub: 'Web', icon: 'i-lucide-globe', tile: '#2563EB', run: () => closeWith(`Searching Google for “${q}”`, () => openUrl(`https://www.google.com/search?q=${encodeURIComponent(q)}`)) }]
+        if (id === 'ask') return [{ key: 'askq', title: `Ask AI “${q}”`, sub: 'Claude', icon: 'i-lucide-sparkles', kind: 'chat', run: () => openChat(q) }]
+        if (id === 'translate') return [translateRow(q)]
+        if (id === 'define') return /^[a-z][a-z'-]*$/i.test(q) && !card ? [defineRow(q)] : []
+        const ql = qls.list.value.find(x => x.id === id)
+        if (!ql || !/\{\w+\}/.test(ql.url)) return []
+        const url = resolveQ(ql, q)
+        return [{ key: `fb:${id}`, title: `${ql.name}: “${q}”`, sub: url, icon: ql.icon, tile: ql.tile, kind: 'link', run: () => closeWith(`Opened ${url}`, () => openUrl(url)) }]
+      })
       if (card) sections.push({ title: `Use “${q}” with…`, rows: web })
       else if (!sections.length) sections.push({ title: 'No matches · search elsewhere', rows: web })
     }

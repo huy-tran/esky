@@ -1,6 +1,7 @@
 // Settings shared between the Settings window and the launcher. Persisted under the `settings` key.
 import { persistRef } from './usePersist'
 import type { AccentId } from '~/utils/accents'
+import { DEFAULT_FALLBACKS } from '~/utils/fallbacks'
 
 export interface SettingsState {
   hotkey: string[]
@@ -23,6 +24,8 @@ export interface SettingsState {
   backend: 'cc' | 'api'
   /** Model for the API key backend. */
   model: string
+  /** What root search offers when nothing matches (see utils/fallbacks.ts), in order. */
+  fallbacks: string[]
   accent: AccentId
 }
 
@@ -46,6 +49,7 @@ const defaults = (): SettingsState => ({
   ],
   backend: 'cc',
   model: 'claude-opus-5-5',
+  fallbacks: [...DEFAULT_FALLBACKS],
   accent: 'green'
 })
 
