@@ -31,7 +31,7 @@ const value = computed({
   set: (q: string) => top.value?.set(q)
 })
 
-const title = computed(() => s.view === 'forgeDetail' ? s.server?.name ?? '' : s.view === 'deploy' ? 'Deploy Site' : s.view === 'password' ? 'Generate Password' : s.view === 'translate' ? 'Google Translate' : s.view === 'aiResult' ? L.aiCmd().title : '')
+const title = computed(() => s.view === 'forgeDetail' ? s.server?.name ?? '' : s.view === 'deploy' ? 'Deploy Site' : s.view === 'password' ? 'Generate Password' : s.view === 'translate' ? 'Google Translate' : s.view === 'devtool' ? 'Developer Tools' : s.view === 'aiResult' ? L.aiCmd().title : '')
 
 const chip = computed(() => {
   const fc = L.forgeModel.value.flat.length
@@ -56,7 +56,8 @@ const chip = computed(() => {
     remoteList: { icon: L.remote.source.value?.icon ?? 'i-lucide-link', text: L.remote.status.value === 'loading' ? 'Loading…' : `${L.remote.source.value?.title ?? ''} · ${L.remoteModel.value.length}` },
     dockerList: { icon: 'i-lucide-container', text: L.docker.status.value === 'loading' ? 'Loading…' : `Docker · ${L.dockerModel.value.length}` },
     dictionary: { icon: 'i-lucide-book-a', text: 'English · Wiktionary' },
-    translate: { icon: 'i-lucide-languages', text: `${langName(L.trLangs.value[0])} ↔ ${langName(L.trLangs.value[1])}` }
+    translate: { icon: 'i-lucide-languages', text: `${langName(L.trLangs.value[0])} ↔ ${langName(L.trLangs.value[1])}` },
+    devtool: { icon: 'i-lucide-wrench', text: 'Developer Tools' }
   }
   return map[s.view]!
 })

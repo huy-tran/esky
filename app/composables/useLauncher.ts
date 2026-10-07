@@ -14,6 +14,10 @@ import type { ClaudeStatus } from '~/utils/claude'
 import { markdownBlocks } from '~/utils/markdown'
 import { lookup, type DictEntry } from '~/utils/dictionary'
 import { defaultPair, googleUrl, langName, translatePair, type Translation } from '~/utils/translate'
+import { DEV_TOOLS, devTool } from '~/utils/devtools'
+
+// Developer tools are search items: "Format JSON", "Base64 Decode", …
+for (const t of DEV_TOOLS) ITEMS[`dev_${t.id}`] = { title: t.title, sub: 'Developer Tools', icon: t.icon, tile: '#0F766E', kind: 'cmd', go: 'devtool' }
 import type { HerdSite } from '~/utils/herd'
 import { useHerd } from './useHerd'
 import { parseFolders } from '~/utils/git'
@@ -35,7 +39,7 @@ import { captureTarget, clearTarget, copyText, ejectDrive, floatNote, hideWindow
 import { persistRef } from './usePersist'
 import { useSettings } from './useSettings'
 
-export type View = 'search' | 'clipboard' | 'chat' | 'aiResult' | 'forgeList' | 'forgeDetail' | 'deploy' | 'emoji' | 'herdList' | 'gitList' | 'password' | 'dockerList' | 'remoteList' | 'dictionary' | 'translate' | SplitView
+export type View = 'search' | 'clipboard' | 'chat' | 'aiResult' | 'forgeList' | 'forgeDetail' | 'deploy' | 'emoji' | 'herdList' | 'gitList' | 'password' | 'dockerList' | 'remoteList' | 'dictionary' | 'translate' | 'devtool' | SplitView
 
 /** Senses shown per part of speech; the rest are one Ctrl O away on Wiktionary. */
 export const DICT_SENSES = 8
@@ -165,7 +169,9 @@ function createLauncher() {
     gitSel: 0,
     dictWord: '',
     dictSel: 0,
-    trText: ''
+    trText: '',
+    devTool: 'json',
+    devInput: ''
   })
 
   // Persisted state
@@ -213,6 +219,7 @@ function createLauncher() {
     note: null as HTMLTextAreaElement | null,
     aiInput: null as HTMLTextAreaElement | null,
     tr: null as HTMLTextAreaElement | null,
+    dev: null as HTMLTextAreaElement | null,
     al: null as HTMLInputElement | null
   })
 
@@ -253,7 +260,7 @@ function createLauncher() {
   function focus() {
     requestAnimationFrame(() => {
       if (!s.open) return
-      const el = s.al ? els.al : s.actionsOpen ? els.act : s.view === 'chat' ? els.chat : s.view === 'deploy' ? els.deploy : s.view === 'aiResult' && s.ai?.needsInput ? els.aiInput : s.view === 'translate' ? els.tr : els.top
+      const el = s.al ? els.al : s.actionsOpen ? els.act : s.view === 'chat' ? els.chat : s.view === 'deploy' ? els.deploy : s.view === 'aiResult' && s.ai?.needsInput ? els.aiInput : s.view === 'translate' ? els.tr : s.view === 'devtool' ? els.dev : els.top
       el?.focus?.()
     })
   }
@@ -507,6 +514,35 @@ function createLauncher() {
     go('translate', { trText: text ?? s.selection?.text ?? '', query: '' })
   }
 
+  // ---------- Developer tools ----------
+
+  const dev = reactive({ out: '', error: '' })
+  let devSeq = 0
+
+  async function runDevTool() {
+    const t = devTool(s.devTool)
+    const seq = ++devSeq
+    if (t.input && !s.devInput.trim()) return Object.assign(dev, { out: t.id === 'time' ? await t.run('') : '', error: '' })
+    try {
+      const out = await t.run(s.devInput)
+      if (seq === devSeq) Object.assign(dev, { out, error: '' })
+    } catch (e) {
+      if (seq === devSeq) Object.assign(dev, { out: '', error: (e as Error).message })
+    }
+  }
+  watch(() => [s.devTool, s.devInput, s.view], () => { if (s.view === 'devtool') runDevTool() })
+
+  /** Open a tool on the selected text, or what's on the clipboard. */
+  function openDevTool(id: string) {
+    const t = devTool(id)
+    go('devtool', { devTool: t.id, devInput: t.input ? s.selection?.text ?? '' : '', query: '' })
+    if (t.input && !s.devInput) {
+      readClipboardText().then((clip) => {
+        if (s.view === 'devtool' && s.devTool === t.id && !s.devInput && clip.trim()) s.devInput = clip
+      })
+    }
+  }
+
   const searchModel = computed(() => {
     void apps.version.value // app and quicklink items in ITEMS changed
     void qls.version.value
@@ -752,6 +788,9 @@ function createLauncher() {
     } else if (s.view === 'dictionary') {
       target = dict.entry?.word || 'Dictionary'
       list = [O('dcopy', 'Copy Definition', 'i-lucide-copy', ['↵']), O('dword', 'Copy Word', 'i-lucide-type', ['Ctrl', 'Shift', 'C']), O('dopen', 'Open in Wiktionary', 'i-lucide-external-link', ['Ctrl', 'O'])]
+    } else if (s.view === 'devtool') {
+      target = devTool(s.devTool).title
+      list = [s.target ? O('vpaste', `Paste into ${s.target.app}`, 'i-lucide-clipboard-paste', ['↵']) : O('vpaste', 'Copy and Close', 'i-lucide-clipboard-copy', ['↵']), O('vcopy', 'Copy Result', 'i-lucide-copy', ['Ctrl', 'C']), O('vrun', 'Run Again', 'i-lucide-refresh-cw', ['Ctrl', 'R'])]
     } else if (s.view === 'translate') {
       target = 'Translation'
       list = [s.target ? O('tpaste', `Paste into ${s.target.app}`, 'i-lucide-clipboard-paste', ['↵']) : O('tpaste', 'Copy and Close', 'i-lucide-clipboard-copy', ['↵']), O('tcopy', 'Copy', 'i-lucide-copy', ['Ctrl', 'C']), O('tswap', 'Swap Languages', 'i-lucide-arrow-left-right', ['Ctrl', 'S']), O('topen', 'Open in Google Translate', 'i-lucide-external-link', ['Ctrl', 'O'])]
@@ -829,7 +868,7 @@ function createLauncher() {
 
   /** A command's own hotkey, pressed while Esky is hidden. Quick AI and Google Translate work on the selection. */
   async function activateFromHotkey(id: string) {
-    await captureFrom(!!(ITEMS[id]?.ai || ITEMS[id]?.go === 'translate') && settings.value.readSelection)
+    await captureFrom(!!(ITEMS[id]?.ai || ITEMS[id]?.go === 'translate' || ITEMS[id]?.go === 'devtool') && settings.value.readSelection)
     activate(id)
   }
 
@@ -1087,6 +1126,7 @@ function createLauncher() {
     if (it.go === 'password') return openPassword()
     if (it.go === 'dictionary') return openDictionary()
     if (it.go === 'translate') return openTranslate()
+    if (it.go === 'devtool') return openDevTool(id.slice(4))
     if (it.go === 'deploy') return openDeployDefault()
     if (it.go === 'theme') {
       colorMode.preference = theme() === 'dark' ? 'light' : 'dark'
@@ -1942,6 +1982,16 @@ function createLauncher() {
         }
         break
       case 'tswap': swapLangs(); break
+      case 'vpaste':
+        if (dev.out) pasteText(dev.out, devTool(s.devTool).title.toLowerCase().includes('uuid') ? 'the UUIDs' : 'the result')
+        break
+      case 'vcopy':
+        if (dev.out) {
+          copyText(dev.out)
+          toast('success', 'Result copied', trunc(dev.out, 60))
+        }
+        break
+      case 'vrun': runDevTool(); break
       case 'topen': {
         const r = tr.result
         const [a, b] = trLangs.value
@@ -2439,6 +2489,20 @@ function createLauncher() {
       }
       return
     }
+    if (v === 'devtool') {
+      if (document.querySelector('[data-reka-popper-content-wrapper]')) return
+      if (k === 'Enter' && !sh && dev.out) {
+        stop()
+        runAction('vpaste')
+      } else if (ctrl && !sh && kl === 'c' && dev.out && !hasInputSel()) {
+        stop()
+        runAction('vcopy')
+      } else if (ctrl && kl === 'r') {
+        stop()
+        runAction('vrun')
+      }
+      return
+    }
     if (v === 'translate') {
       // A language menu is open: its keys are its own.
       if (document.querySelector('[data-reka-popper-content-wrapper]')) return
@@ -2518,6 +2582,7 @@ function createLauncher() {
     }
     if (v === 'password') return { app: { icon: 'i-lucide-key-round', tile: '#175DDC', name: 'Password Generator' }, hints: [hint('Copy', ['↵'], () => runAction('pwcopy'), true), hint('Regenerate', ['Ctrl', 'R'], () => runAction('pwnew')), act] }
     if (v === 'dictionary') return { app: { icon: 'i-lucide-book-a', tile: '#0369A1', name: 'Dictionary' }, hints: [hint('Copy', ['↵'], () => runAction('dcopy'), true), hint('Wiktionary', ['Ctrl', 'O'], () => runAction('dopen')), act] }
+    if (v === 'devtool') return { app: { icon: 'i-lucide-wrench', tile: '#0F766E', name: 'Developer Tools' }, hints: [hint(s.target ? 'Paste' : 'Copy', ['↵'], () => runAction('vpaste'), true), hint('Run Again', ['Ctrl', 'R'], () => runAction('vrun')), act] }
     if (v === 'translate') return { app: { icon: 'i-lucide-languages', tile: '#1A73E8', name: 'Google Translate' }, hints: [hint(s.target ? 'Paste' : 'Copy', ['↵'], () => runAction('tpaste'), true), hint('Swap', ['Ctrl', 'S'], () => runAction('tswap')), act] }
     if (v === 'forgeList') return { app: FORGE, hints: [hint('Show Details', ['↵'], () => runAction('fopen'), true), hint('Deploy', ['Ctrl', 'D'], () => runAction('fdeploy')), act] }
     if (v === 'forgeDetail') return { app: FORGE, hints: [hint('Deploy Site', ['↵'], () => s.server && openDeploy(s.server, 'forgeDetail'), true), hint('Open in Forge', ['Ctrl', 'O'], () => runAction('fforge')), act] }
@@ -2591,7 +2656,7 @@ function createLauncher() {
   return {
     s, els, ready, favs, disabled, usage, recent, aliases, hotkeys, installed, notes, clip, floatId, settings,
     searchModel, clipModel, forgeModel, splitModel, emojiModel, actionsModel, footer,
-    apps, qls, sn, files, docker, dockerModel, remote, remoteModel, submitLogWork, forge, openServer, openForgeList, herd, herdModel, openSite, git, gitModel, pw, copyPassword, dict, dictFlat, openDictionary, tr, trLangs, setLang, swapLangs, openTranslate,
+    apps, qls, sn, files, docker, dockerModel, remote, remoteModel, submitLogWork, forge, openServer, openForgeList, herd, herdModel, openSite, git, gitModel, pw, copyPassword, dict, dictFlat, openDictionary, tr, trLangs, setLang, swapLangs, openTranslate, dev, openDevTool,
     chats, chatGroups, openSavedChat, claude,
     curClip, curSplit, curEmoji, detail, aiCmd, rowKeys, comboOwner, aliasOwner,
     toast, focus, go, openWin, openFromHotkey, openFromTray, activateFromHotkey, back, closeWith, activate, runAction, runSplit, openActions,
