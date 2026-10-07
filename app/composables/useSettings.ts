@@ -29,7 +29,7 @@ export interface SettingsState {
   accent: AccentId
   /** The launcher's backdrop: Windows' Mica or Acrylic, see-through, or solid. */
   background: 'mica' | 'acrylic' | 'clear' | 'solid'
-  /** How opaque the launcher panel is, 20–100 (%). Ignored when the background is solid. */
+  /** How opaque the launcher panel is, 20 to 100 (%). Ignored when the background is solid. */
   opacity: number
 }
 

@@ -580,7 +580,7 @@ function createLauncher() {
     let trq: RegExpMatchArray | null
     if (!q) {
       if (s.selection) {
-        // Ctrl 1–4 built-in Quick AI, Ctrl 5 Google Translate, Ctrl 6–9 your first four AI commands.
+        // Ctrl 1 to 4 built-in Quick AI, Ctrl 5 Google Translate, Ctrl 6 to 9 your first four AI commands.
         const ai = (c: { id: string, title: string, icon: string }, keys?: string[]): Row => ({ key: c.id, title: c.title, sub: 'Quick AI', icon: c.icon, keys, kind: 'ai', run: () => runAi(c.id) })
         sections.push({ title: 'Use selected text', rows: [
           ...AI_CMDS.map(c => ai(c, c.keys)),
