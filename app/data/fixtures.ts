@@ -278,6 +278,7 @@ Object.assign(ITEMS, {
   notesCmd: { title: 'Floating Notes', sub: 'Esky', icon: 'i-lucide-sticky-note', kind: 'cmd', go: 'notes' },
   tourCmd: { title: 'Welcome Tour', sub: 'Esky', icon: 'i-lucide-party-popper', kind: 'cmd', go: 'onboard' },
   herdSites: { title: 'Herd Sites', sub: 'Laravel Herd', icon: 'i-lucide-feather', tile: '#E11D48', kind: 'cmd', go: 'herdList' },
+  trCmd: { title: 'Google Translate', sub: 'Translate between two languages', icon: 'i-lucide-languages', tile: '#1A73E8', kind: 'cmd', go: 'translate' },
   dictCmd: { title: 'Dictionary', sub: 'Define an English word', icon: 'i-lucide-book-a', tile: '#0369A1', kind: 'cmd', go: 'dictionary' },
   gitChanges: { title: 'Uncommitted Changes', sub: 'Git', icon: 'i-lucide-git-branch', tile: '#F05032', kind: 'cmd', go: 'gitList' },
   pwGen: { title: 'Generate Password', sub: 'Password or passphrase', icon: 'i-lucide-key-round', tile: '#175DDC', kind: 'cmd', go: 'password' },

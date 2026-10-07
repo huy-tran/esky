@@ -20,6 +20,7 @@ const top = computed((): Top | null => {
   if (v === 'gitList') return { ph: 'Search repos or branches…', get: () => s.gitQuery, set: (q) => { s.gitQuery = q; s.gitSel = 0 } }
   if (v === 'remoteList') return { ph: L.remote.source.value?.placeholder ?? 'Search…', get: () => s.remoteQuery, set: (q) => { s.remoteQuery = q; s.remoteSel = 0 } }
   if (v === 'dockerList') return { ph: `Search ${({ containers: 'containers', compose: 'Compose projects', images: 'images' } as const)[L.docker.kind.value]}…`, get: () => s.dockerQuery, set: (q) => { s.dockerQuery = q; s.dockerSel = 0 } }
+  if (v === 'translate') return { ph: 'Type or paste text to translate…', get: () => s.trText, set: (q) => { s.trText = q } }
   if (v === 'dictionary') return { ph: 'Type a word to define…', get: () => s.dictWord, set: (q) => { s.dictWord = q } }
   if (v === 'aiResult' && !s.ai?.needsInput) return { ph: 'Ask a follow-up, then Tab to continue in chat…', get: () => s.followUp, set: (q) => { s.followUp = q } }
   if (SPLIT_PH[v]) return { ph: SPLIT_PH[v]!, get: () => s.splitQuery, set: (q) => { s.splitQuery = q; s.splitSel = 0 } }
@@ -55,7 +56,8 @@ const chip = computed(() => {
     password: { icon: 'i-lucide-shield-check', text: 'Generated on this PC' },
     remoteList: { icon: L.remote.source.value?.icon ?? 'i-lucide-link', text: L.remote.status.value === 'loading' ? 'Loading…' : `${L.remote.source.value?.title ?? ''} · ${L.remoteModel.value.length}` },
     dockerList: { icon: 'i-lucide-container', text: L.docker.status.value === 'loading' ? 'Loading…' : `Docker · ${L.dockerModel.value.length}` },
-    dictionary: { icon: 'i-lucide-book-a', text: 'English · Wiktionary' }
+    dictionary: { icon: 'i-lucide-book-a', text: 'English · Wiktionary' },
+    translate: { icon: 'i-lucide-languages', text: `${langName(L.trLangs.value[0])} ↔ ${langName(L.trLangs.value[1])}` }
   }
   return map[s.view]!
 })

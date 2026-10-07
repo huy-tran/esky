@@ -13,6 +13,7 @@ import { useClaude, type ClaudeRun } from './useClaude'
 import type { ClaudeStatus } from '~/utils/claude'
 import { markdownBlocks } from '~/utils/markdown'
 import { lookup, type DictEntry } from '~/utils/dictionary'
+import { defaultPair, googleUrl, langName, translatePair, type Translation } from '~/utils/translate'
 import type { HerdSite } from '~/utils/herd'
 import { useHerd } from './useHerd'
 import { parseFolders } from '~/utils/git'
@@ -34,7 +35,7 @@ import { captureTarget, clearTarget, copyText, ejectDrive, floatNote, hideWindow
 import { persistRef } from './usePersist'
 import { useSettings } from './useSettings'
 
-export type View = 'search' | 'clipboard' | 'chat' | 'aiResult' | 'forgeList' | 'forgeDetail' | 'deploy' | 'emoji' | 'herdList' | 'gitList' | 'password' | 'dockerList' | 'remoteList' | 'dictionary' | SplitView
+export type View = 'search' | 'clipboard' | 'chat' | 'aiResult' | 'forgeList' | 'forgeDetail' | 'deploy' | 'emoji' | 'herdList' | 'gitList' | 'password' | 'dockerList' | 'remoteList' | 'dictionary' | 'translate' | SplitView
 
 /** Senses shown per part of speech; the rest are one Ctrl O away on Wiktionary. */
 export const DICT_SENSES = 8
@@ -163,7 +164,8 @@ function createLauncher() {
     dockerSel: 0,
     gitSel: 0,
     dictWord: '',
-    dictSel: 0
+    dictSel: 0,
+    trText: ''
   })
 
   // Persisted state
@@ -183,6 +185,8 @@ function createLauncher() {
   const chats = ref<SavedChat[]>([])
   const claude = useClaude()
   const onboarded = ref(false)
+  /** Google Translate's language pair. */
+  const trLangs = ref<[string, string]>(defaultPair())
 
   const ready = Promise.all([
     persistRef('favs', favs),
@@ -195,7 +199,8 @@ function createLauncher() {
     clipboard.ready,
     persistRef('floatId', floatId),
     persistRef('onboarded', onboarded),
-    persistRef('chats', chats)
+    persistRef('chats', chats),
+    persistRef('translate.langs', trLangs)
   ])
 
   // DOM elements the key map needs to focus or compare against.
@@ -456,6 +461,51 @@ function createLauncher() {
     go('dictionary', { dictWord: word, dictSel: 0, query: '' })
   }
 
+  // ---------- Google Translate ----------
+
+  const tr = reactive({
+    status: 'idle' as 'idle' | 'loading' | 'ready' | 'error',
+    result: null as Translation | null,
+    error: ''
+  })
+  let trTimer: ReturnType<typeof setTimeout> | undefined
+  let trCtrl: AbortController | null = null
+
+  /** Translate `s.trText` after typing pauses, and again when the languages change. */
+  watch([() => s.trText, trLangs], ([text, [a, b]]) => {
+    clearTimeout(trTimer)
+    trCtrl?.abort()
+    const t = text.trim()
+    if (!t) {
+      Object.assign(tr, { status: 'idle', result: null, error: '' })
+      return
+    }
+    tr.status = 'loading'
+    trTimer = setTimeout(async () => {
+      const ctrl = (trCtrl = new AbortController())
+      try {
+        const result = await translatePair(t, a, b, ctrl.signal)
+        if (ctrl === trCtrl) Object.assign(tr, { status: 'ready', result, error: '' })
+      } catch (e) {
+        if (ctrl === trCtrl && (e as Error).name !== 'AbortError') Object.assign(tr, { status: 'error', result: null, error: (e as Error).message })
+      }
+    }, 400)
+  }, { deep: true })
+
+  /** Pick one side of the pair. Picking the other side's language swaps them. */
+  function setLang(side: 0 | 1, code: string) {
+    const [a, b] = trLangs.value
+    const other = side ? a : b
+    trLangs.value = code === other ? [b, a] : side ? [a, code] : [code, b]
+  }
+  const swapLangs = () => { trLangs.value = [trLangs.value[1], trLangs.value[0]] }
+
+  const translateRow = (text: string): Row => ({ key: `tr:${text}`, title: `Translate “${trunc(text, 40)}”`, sub: `Google Translate · ${langName(trLangs.value[0])} ↔ ${langName(trLangs.value[1])}`, icon: 'i-lucide-languages', tile: '#1A73E8', kind: 'cmd', run: () => openTranslate(text) })
+
+  function openTranslate(text?: string) {
+    go('translate', { trText: text ?? s.selection?.text ?? '', query: '' })
+  }
+
   const searchModel = computed(() => {
     void apps.version.value // app and quicklink items in ITEMS changed
     void qls.version.value
@@ -465,6 +515,7 @@ function createLauncher() {
     let card: (QuickCard & { run: () => void }) | null = null
     const sections: Section[] = []
     let def: RegExpMatchArray | null
+    let trq: RegExpMatchArray | null
     if (!q) {
       if (s.selection) sections.push({ title: 'Use selected text', rows: AI_CMDS.map(c => ({ key: c.id, title: c.title, sub: 'Quick AI', icon: c.icon, keys: c.keys, kind: 'ai', run: () => runAi(c.id) })) })
       sections.push({ title: 'Favourites', rows: favs.value.filter(id => ITEMS[id] && ok(id)).map(id => mk(id)) })
@@ -472,6 +523,8 @@ function createLauncher() {
       sections.push({ title: 'Suggestions', rows: SUGGEST.filter(ok).map(id => mk(id)) })
     } else if ((def = q.match(/^(?:define|def)\s+(.+)$/i))) {
       sections.push({ title: 'Dictionary', rows: [defineRow(def[1]!.trim())] })
+    } else if ((trq = q.match(/^(?:tr|translate)\s+(.+)$/i))) {
+      sections.push({ title: 'Google Translate', rows: [translateRow(trq[1]!.trim())] })
     } else {
       const t = quick(q, quickOpts())
       if (t && 'card' in t) {
@@ -698,6 +751,9 @@ function createLauncher() {
     } else if (s.view === 'dictionary') {
       target = dict.entry?.word || 'Dictionary'
       list = [O('dcopy', 'Copy Definition', 'i-lucide-copy', ['↵']), O('dword', 'Copy Word', 'i-lucide-type', ['Ctrl', 'Shift', 'C']), O('dopen', 'Open in Wiktionary', 'i-lucide-external-link', ['Ctrl', 'O'])]
+    } else if (s.view === 'translate') {
+      target = 'Translation'
+      list = [s.target ? O('tpaste', `Paste into ${s.target.app}`, 'i-lucide-clipboard-paste', ['↵']) : O('tpaste', 'Copy and Close', 'i-lucide-clipboard-copy', ['↵']), O('tcopy', 'Copy', 'i-lucide-copy', ['Ctrl', 'C']), O('tswap', 'Swap Languages', 'i-lucide-arrow-left-right', ['Ctrl', 'S']), O('topen', 'Open in Google Translate', 'i-lucide-external-link', ['Ctrl', 'O'])]
     } else if (s.view === 'aiResult') {
       target = aiCmd().title
       list = s.ai?.needsInput ? [O('airun', 'Run', 'i-lucide-play', ['↵'])] : [s.target ? O('aipaste', `Paste into ${s.target.app}`, 'i-lucide-clipboard-paste', ['↵']) : O('aipaste', 'Copy and Close', 'i-lucide-clipboard-copy', ['↵']), O('aicopy', 'Copy', 'i-lucide-copy', ['Ctrl', 'C']), O('aichat', 'Continue in Chat', 'i-lucide-message-square', ['Tab']), O('regen', 'Regenerate', 'i-lucide-refresh-cw', ['Ctrl', 'R'])]
@@ -1029,6 +1085,7 @@ function createLauncher() {
     if (it.go === 'gitList') return openGit()
     if (it.go === 'password') return openPassword()
     if (it.go === 'dictionary') return openDictionary()
+    if (it.go === 'translate') return openTranslate()
     if (it.go === 'deploy') return openDeployDefault()
     if (it.go === 'theme') {
       colorMode.preference = theme() === 'dark' ? 'light' : 'dark'
@@ -1874,6 +1931,22 @@ function createLauncher() {
       case 'dopen':
         if (dict.entry) closeWith(`Opened “${dict.entry.word}” in Wiktionary`, () => openUrl(dict.entry!.url))
         break
+      case 'tpaste':
+        if (tr.result) pasteText(tr.result.text, 'the translation')
+        break
+      case 'tcopy':
+        if (tr.result) {
+          copyText(tr.result.text)
+          toast('success', 'Translation copied', trunc(tr.result.text, 60))
+        }
+        break
+      case 'tswap': swapLangs(); break
+      case 'topen': {
+        const r = tr.result
+        const [a, b] = trLangs.value
+        closeWith('Opened Google Translate', () => openUrl(googleUrl(s.trText.trim(), r?.from ?? a, r?.to ?? b)))
+        break
+      }
     }
   }
 
@@ -2364,6 +2437,24 @@ function createLauncher() {
       }
       return
     }
+    if (v === 'translate') {
+      // A language menu is open: its keys are its own.
+      if (document.querySelector('[data-reka-popper-content-wrapper]')) return
+      if (k === 'Enter' && !sh && tr.result) {
+        stop()
+        runAction('tpaste')
+      } else if (ctrl && !sh && kl === 'c' && tr.result && !hasInputSel()) {
+        stop()
+        runAction('tcopy')
+      } else if (ctrl && kl === 's') {
+        stop()
+        runAction('tswap')
+      } else if (ctrl && kl === 'o') {
+        stop()
+        runAction('topen')
+      }
+      return
+    }
     if (v === 'forgeDetail') {
       if (k === 'Enter' || (ctrl && kl === 'd')) {
         stop()
@@ -2425,6 +2516,7 @@ function createLauncher() {
     }
     if (v === 'password') return { app: { icon: 'i-lucide-key-round', tile: '#175DDC', name: 'Password Generator' }, hints: [hint('Copy', ['↵'], () => runAction('pwcopy'), true), hint('Regenerate', ['Ctrl', 'R'], () => runAction('pwnew')), act] }
     if (v === 'dictionary') return { app: { icon: 'i-lucide-book-a', tile: '#0369A1', name: 'Dictionary' }, hints: [hint('Copy', ['↵'], () => runAction('dcopy'), true), hint('Wiktionary', ['Ctrl', 'O'], () => runAction('dopen')), act] }
+    if (v === 'translate') return { app: { icon: 'i-lucide-languages', tile: '#1A73E8', name: 'Google Translate' }, hints: [hint(s.target ? 'Paste' : 'Copy', ['↵'], () => runAction('tpaste'), true), hint('Swap', ['Ctrl', 'S'], () => runAction('tswap')), act] }
     if (v === 'forgeList') return { app: FORGE, hints: [hint('Show Details', ['↵'], () => runAction('fopen'), true), hint('Deploy', ['Ctrl', 'D'], () => runAction('fdeploy')), act] }
     if (v === 'forgeDetail') return { app: FORGE, hints: [hint('Deploy Site', ['↵'], () => s.server && openDeploy(s.server, 'forgeDetail'), true), hint('Open in Forge', ['Ctrl', 'O'], () => runAction('fforge')), act] }
     if (v === 'deploy') return { app: FORGE, hints: [hint('Deploy', ['Ctrl', '↵'], submitDeploy, true), hint('Next field', ['Tab']), hint('Back', ['Esc'], back)] }
@@ -2497,7 +2589,7 @@ function createLauncher() {
   return {
     s, els, ready, favs, disabled, usage, recent, aliases, hotkeys, installed, notes, clip, floatId, settings,
     searchModel, clipModel, forgeModel, splitModel, emojiModel, actionsModel, footer,
-    apps, qls, sn, files, docker, dockerModel, remote, remoteModel, submitLogWork, forge, openServer, openForgeList, herd, herdModel, openSite, git, gitModel, pw, copyPassword, dict, dictFlat, openDictionary,
+    apps, qls, sn, files, docker, dockerModel, remote, remoteModel, submitLogWork, forge, openServer, openForgeList, herd, herdModel, openSite, git, gitModel, pw, copyPassword, dict, dictFlat, openDictionary, tr, trLangs, setLang, swapLangs, openTranslate,
     chats, chatGroups, openSavedChat, claude,
     curClip, curSplit, curEmoji, detail, aiCmd, rowKeys, comboOwner, aliasOwner,
     toast, focus, go, openWin, openFromHotkey, openFromTray, activateFromHotkey, back, closeWith, activate, runAction, runSplit, openActions,

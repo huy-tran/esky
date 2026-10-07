@@ -20,6 +20,7 @@ All notable changes to Esky are listed here. The format follows [Keep a Changelo
 - Laravel Forge: servers, sites, deployments with their log, and SSH.
 - GitHub, Jira (including Log Work) and Sentry commands that load your own data.
 - AI Chat and Quick AI can use an Anthropic API key instead of Claude Code, with a choice of model.
+- Google Translate: translate between two languages you pick (remembered), in either direction; `tr` and your text from root search.
 
 ### Removed
 
