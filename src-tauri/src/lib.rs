@@ -527,29 +527,31 @@ async fn snippet_erase(keyword_chars: usize) -> Result<(), String> {
     blocking(move || expand::erase(keyword_chars)).await
 }
 
+#[cfg(windows)]
+mod backdrop;
+
 /// The launcher window's backdrop (Settings → Appearance → Background): "mica" (tinted by the
-/// wallpaper), "acrylic" (blurs what's behind), "clear" or "solid" (the page draws the panel on top).
+/// wallpaper), "acrylic" (blurs what's behind, see backdrop.rs), "clear" or "solid". The page
+/// draws the panel colour on top, at the opacity from Settings.
 #[tauri::command]
 fn window_effect(app: AppHandle, effect: String, dark: bool) -> Result<(), String> {
     let window = app.get_webview_window("main").ok_or("No launcher window")?;
     #[cfg(target_os = "windows")]
     {
-        use window_vibrancy::{apply_acrylic, apply_blur, apply_mica, clear_acrylic, clear_blur, clear_mica};
+        use window_vibrancy::{apply_acrylic, apply_mica, clear_acrylic, clear_mica};
+        let hwnd = window.hwnd().map_err(|e| e.to_string())?.0 as isize;
+        backdrop::clear(hwnd);
         let _ = clear_mica(&window);
         let _ = clear_acrylic(&window);
-        let _ = clear_blur(&window);
-        let tint = if dark { (15, 23, 42, 40) } else { (250, 250, 247, 40) };
+        let rgb = if dark { (15, 23, 42) } else { (250, 250, 247) };
         match effect.as_str() {
             // Mica needs Windows 11; Windows 10 gets Acrylic instead.
             "mica" => {
                 if apply_mica(&window, Some(dark)).is_err() {
-                    apply_acrylic(&window, Some(tint)).map_err(|e| e.to_string())?;
+                    apply_acrylic(&window, Some((rgb.0, rgb.1, rgb.2, 40))).map_err(|e| e.to_string())?;
                 }
             }
-            // Windows 11's own Acrylic backdrop looks almost like Mica behind the panel, so blur
-            // the windows behind instead (as Tabby does). The panel's opacity is the tint. It can
-            // lag while a window is dragged or resized, which the launcher never is.
-            "acrylic" => apply_blur(&window, Some((0, 0, 0, 0))).map_err(|e| e.to_string())?,
+            "acrylic" => backdrop::apply_blur(hwnd)?,
             "clear" | "solid" => {}
             _ => return Err("Unknown background".into()),
         }
