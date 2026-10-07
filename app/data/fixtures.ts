@@ -356,7 +356,7 @@ Object.assign(ITEMS, {
   shutdown: { title: 'Shut Down', sub: 'System', icon: 'i-lucide-power', kind: 'sys' },
   signout: { title: 'Sign Out', sub: 'System', icon: 'i-lucide-log-out', kind: 'sys' },
   emptyBin: { title: 'Empty Recycle Bin', sub: 'System', icon: 'i-lucide-trash-2', kind: 'sys' },
-  dnd: { title: 'Toggle Do Not Disturb', sub: 'System', icon: 'i-lucide-bell-off', kind: 'sys' },
+  dnd: { title: 'Do Not Disturb', sub: 'Opens notification settings', icon: 'i-lucide-bell-off', kind: 'sys' },
   eject: { title: 'Eject All Drives', sub: 'System', icon: 'i-lucide-usb', kind: 'sys' }
 } satisfies Record<string, Item>)
 

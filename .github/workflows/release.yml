@@ -58,6 +58,8 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Lets "Check for updates" in this build look at this repo's releases.
+          ESKY_UPDATE_REPO: ${{ github.repository }}
         with:
           tagName: v__VERSION__
           releaseName: Esky v__VERSION__

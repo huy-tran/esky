@@ -21,6 +21,7 @@ import { openTerminal, useGitRepos } from './useGitRepos'
 import { usePassword, wordlist } from './usePassword'
 import { useApps } from './useApps'
 import { useHotkeys } from './useHotkeys'
+import { useRates } from './useRates'
 import { comboOf, phSegs, trunc, type BodySeg } from '~/utils/text'
 import { copyText, floatNote, hideWindow, isTauri, openSettings, openUrl, readClipboardText, revealPath, showWindow } from './usePlatform'
 import { persistRef } from './usePersist'
@@ -133,10 +134,8 @@ function createLauncher() {
     branchErr: '',
     splitQuery: '',
     splitSel: 0,
-    installing: null as string | null,
     args: {} as Record<string, string>,
     expand: true,
-    dnd: false,
     hk: null as null | { id: string, title: string, combo: string[] | null, conflict: string, ownerId?: string | null, reserved?: boolean, note?: string },
     al: null as null | { id: string, title: string, value: string },
     confirm: null as null | { title: string, desc: string, label: string, run: () => void },
@@ -251,7 +250,7 @@ function createLauncher() {
   /** Calculator preferences, and quicklinks resolved as above. */
   const quickOpts = () => {
     const p = exts.prefsFor('calc')
-    return { decimals: Number(p.decimals ?? 6), separators: p.separators !== false, resolve: resolveQ }
+    return { decimals: Number(p.decimals ?? 6), separators: p.separators !== false, resolve: resolveQ, rates: rates.rates.value }
   }
 
   /** Ask for missing setup instead of running a command that can't work. */
@@ -266,6 +265,7 @@ function createLauncher() {
   // ---------- models ----------
 
   const apps = useApps()
+  const rates = useRates()
 
   const mk = (id: string, hl?: string): Row => {
     const it = ITEMS[id]!
@@ -532,7 +532,7 @@ function createLauncher() {
     if (v === 'store') {
       groups = grp(EXTENSIONS.filter(x => !x.builtIn && has(x.name, x.desc)).map((x) => {
         const inst = installed.value.includes(x.id)
-        return { key: x.id, title: x.name, sub: x.desc, icon: x.icon, tile: x.tile, acc: s.installing === x.id ? 'Installing…' : inst ? 'Installed' : '', accColor: inst ? 'var(--ok)' : 'var(--muted)', data: x, g: inst ? 'Installed' : 'Available' }
+        return { key: x.id, title: x.name, sub: x.desc, icon: x.icon, tile: x.tile, acc: inst ? 'Installed' : '', accColor: inst ? 'var(--ok)' : 'var(--muted)', data: x, g: inst ? 'Installed' : 'Available' }
       }), ['Installed', 'Available'])
     }
     if (v === 'notes') groups = grp(notes.value.filter(x => has(x.body)).map(x => ({ key: x.id, title: x.body.split('\n')[0] || 'Untitled note', sub: x.updated, icon: 'i-lucide-sticky-note', acc: floatId.value === x.id ? 'Floating' : '', accColor: 'var(--warn)', data: x, g: 'Notes' })))
@@ -582,8 +582,7 @@ function createLauncher() {
     if (v === 'store') {
       const n = x as ExtensionDef
       const inst = installed.value.includes(n.id)
-      const busy = s.installing === n.id
-      return { head: { icon: n.icon, tile: n.tile, title: n.name, sub: `by ${n.author}`, btn: { label: busy ? 'Installing…' : inst ? 'Uninstall' : 'Install', primary: !inst, danger: inst, busy, run: () => inst ? askUninstall(n) : install(n) } }, desc: n.desc, items: { title: 'COMMANDS', list: n.commands.map(c => ({ t: c.title, icon: n.icon })) }, meta: [['Author', n.author], ['Version', n.ver], ['Status', inst ? (exts.isActive(n.id) ? 'Installed' : 'Installed · turned off') : 'Not installed']] }
+      return { head: { icon: n.icon, tile: n.tile, title: n.name, sub: `by ${n.author}`, btn: { label: inst ? 'Uninstall' : 'Install', primary: !inst, danger: inst, busy: false, run: () => inst ? askUninstall(n) : install(n) } }, desc: n.desc, items: { title: 'COMMANDS', list: n.commands.map(c => ({ t: c.title, icon: n.icon })) }, meta: [['Author', n.author], ['Version', n.ver], ['Status', inst ? (exts.isActive(n.id) ? 'Installed' : 'Installed · turned off') : 'Not installed']] }
     }
     if (v === 'notes') {
       const n = x as Note
@@ -722,11 +721,8 @@ function createLauncher() {
     }
     if (SYS_CONFIRM[id]) return Object.assign(s, { open: true, confirm: sysConfirm(id) })
     if (id === 'sleep') return closeWith('Going to sleep…')
-    if (id === 'dnd') {
-      const on = !s.dnd
-      s.dnd = on
-      return toast('info', on ? 'Do Not Disturb on' : 'Do Not Disturb off', on ? 'Notifications are silenced until you turn it off.' : 'Notifications are back on.')
-    }
+    // Windows has no public API for Do Not Disturb, so open the page where it's one click.
+    if (id === 'dnd') return closeWith('Opened notification settings', () => openUrl('ms-settings:notifications'))
     if (id === 'eject') return toast('success', 'Safe to remove', 'Kingston DataTraveler (E:) ejected')
     if (it.go === 'clipboard') return go('clipboard', { clipQuery: '', clipSel: 0 })
     if (it.go === 'chat') return openChat('')
@@ -796,16 +792,12 @@ function createLauncher() {
 
   const applyWin = (w: WinCmd) => closeWith(w.display ? 'Moved Visual Studio Code to Display 2' : `Visual Studio Code · ${w.title}`)
 
+  /** Extensions ship with Esky, so installing just adds their commands to search. */
   function install(x: ExtensionDef) {
-    if (s.installing) return
-    s.installing = x.id
-    setTimeout(() => {
-      s.installing = null
-      exts.install(x.id)
-      const n = x.commands.length
-      const required = x.prefs.some(f => f.required)
-      toast('success', `Installed ${x.name}`, `${n} command${n > 1 ? 's' : ''} added to search${required ? '. It needs setting up before use.' : ''}`, required ? { label: 'Set up', run: () => openSettings({ tab: 'extensions', ext: x.id }) } : null)
-    }, 1100)
+    exts.install(x.id)
+    const n = x.commands.length
+    const required = x.prefs.some(f => f.required)
+    toast('success', `Installed ${x.name}`, `${n} command${n > 1 ? 's' : ''} added to search${required ? '. It needs setting up before use.' : ''}`, required ? { label: 'Set up', run: () => openSettings({ tab: 'extensions', ext: x.id }) } : null)
   }
 
   function askUninstall(x: ExtensionDef) {
@@ -1910,6 +1902,7 @@ function createLauncher() {
       showWindow(settings.value.activeMonitor)
       // Pick up apps installed since the list was read.
       apps.refreshIfStale()
+      rates.refresh()
     } else hideWindow()
   })
 
@@ -1919,6 +1912,7 @@ function createLauncher() {
     if (!onboarded.value) Object.assign(s, { open: true, onb:{ step: 0, hk: 0, tg: { ...ONB_TG } } })
     if (floatId.value) floatNote(floatId.value)
     apps.load()
+    rates.refresh()
     // Herd sites also appear in root search.
     if (exts.isActive('herd')) loadHerd()
     // A different Herd config folder (set in Settings) means a different site list.

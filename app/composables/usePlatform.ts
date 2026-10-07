@@ -50,7 +50,7 @@ export async function openUrl(url: string) {
     return
   }
   const { openUrl: open, openPath } = await import('@tauri-apps/plugin-opener')
-  if (/^(https?|vscode|cursor|zed|phpstorm):/i.test(url)) await open(url)
+  if (/^(https?|vscode|cursor|zed|phpstorm|ms-settings):/i.test(url)) await open(url)
   else await openPath(url)
 }
 

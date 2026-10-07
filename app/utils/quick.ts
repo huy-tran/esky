@@ -88,6 +88,16 @@ export interface QuickOptions {
   separators?: boolean
   /** Builds a quicklink URL; lets the caller apply preferences such as the Laravel Docs version. */
   resolve?: (q: Quicklink, arg: string) => string
+  /** Live currency rates (units per US dollar) and when they were last updated. Without them, built-in approximate rates are used. */
+  rates?: { rates: Record<string, number>, updated: number } | null
+}
+
+/** "3 hours ago" style age of a timestamp. */
+function ago(t: number) {
+  const m = Math.round((Date.now() - t) / 60000)
+  if (m < 60) return m <= 1 ? 'just now' : `${m} minutes ago`
+  const h = Math.round(m / 60)
+  return h < 48 ? `${h} hour${h > 1 ? 's' : ''} ago` : `${Math.round(h / 24)} days ago`
 }
 
 export function quick(q: string, opts: QuickOptions = {}): QuickResult {
@@ -113,13 +123,15 @@ export function quick(q: string, opts: QuickOptions = {}): QuickResult {
     ] }
   }
 
-  if ((m = ql.match(/^(-?[\d.,]+)\s*([a-z]{3})\s+(?:to|in)\s+([a-z]{3})$/)) && RATES[m[2]!] && RATES[m[3]!]) {
+  const live = opts.rates?.rates
+  const table = live ?? RATES
+  if ((m = ql.match(/^(-?[\d.,]+)\s*([a-z]{3})\s+(?:to|in)\s+([a-z]{3})$/)) && table[m[2]!] && table[m[3]!]) {
     const n = parseFloat(m[1]!.replace(/,/g, ''))
-    const r = RATES[m[3]!]! / RATES[m[2]!]!
+    const r = table[m[3]!]! / table[m[2]!]!
     const v = n * r
     const A = m[2]!.toUpperCase()
     const B = m[3]!.toUpperCase()
-    return { card: { label: 'Currency', icon: 'i-lucide-banknote', caption: `${fmt(n, 2)} ${A} =`, big: `${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${B}`, meta: `1 ${A} = ${r.toFixed(4)} ${B} · updated 2 hours ago`, copy: v.toFixed(2) } }
+    return { card: { label: 'Currency', icon: 'i-lucide-banknote', caption: `${fmt(n, 2)} ${A} =`, big: `${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${B}`, meta: `1 ${A} = ${r.toFixed(4)} ${B} · ${live ? `rates updated ${ago(opts.rates!.updated)}` : 'approximate offline rates'}`, copy: v.toFixed(2) } }
   }
 
   if ((m = ql.match(/^(-?[\d.,]+)\s*([a-z°]+)\s+(?:to|in)\s+([a-z°]+)$/))) {

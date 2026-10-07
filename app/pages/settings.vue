@@ -5,6 +5,7 @@ import type { SettingsState } from '~/composables/useSettings'
 import { ACCENT_IDS, accentLabel, accentVars } from '~/utils/accents'
 import { EXTENSIONS, extById, type ExtensionDef } from '~/extensions/registry'
 import type { ClaudeStatus } from '~/utils/claude'
+import { checkForUpdate, type UpdateCheck } from '~/utils/updates'
 
 const { settings } = useSettings()
 const S = settings
@@ -156,10 +157,13 @@ function onAccentKey(e: KeyboardEvent) {
 
 // About
 const sys = useSystemInfo()
-const upd = ref(0)
-function checkUpdates() {
-  upd.value = 1
-  setTimeout(() => { upd.value = 2 }, 1000)
+const updateRepo = useRuntimeConfig().public.updateRepo as string
+const checkingUpdate = ref(false)
+const update = ref<UpdateCheck | null>(null)
+async function checkUpdates() {
+  checkingUpdate.value = true
+  update.value = await checkForUpdate(updateRepo, sys.version)
+  checkingUpdate.value = false
 }
 
 // Ctrl 1-6 jump between sections, Esc closes the window.
@@ -464,9 +468,24 @@ const selectUi = { trailingIcon: 'size-3.5 text-(--muted)', content: 'bg-(--pop-
                 <div class="text-[12.5px] text-(--muted) mt-0.5">Version {{ sys.version }}<template v-if="sys.os.value"> · {{ sys.os.value }}</template></div>
               </div>
             </div>
-            <UButton color="neutral" variant="outline" :class="ghostBtn" @click="checkUpdates">
-              <Spinner v-if="upd === 1" :size="13" />{{ ['Check for updates', 'Checking…', 'You’re on the latest version'][upd] }}
-            </UButton>
+            <div class="flex items-center gap-2.5">
+              <UButton color="neutral" variant="outline" :class="ghostBtn" :disabled="checkingUpdate || !updateRepo" @click="checkUpdates">
+                <Spinner v-if="checkingUpdate" :size="13" />{{ checkingUpdate ? 'Checking…' : 'Check for updates' }}
+              </UButton>
+              <UButton
+                v-if="update?.state === 'available'"
+                icon="i-lucide-download"
+                :label="`Download ${update.version}`"
+                class="h-8 px-3 gap-1.5 rounded-[6px] bg-(--accent) hover:bg-(--accent) text-(--on-accent) text-[12.5px] font-semibold"
+                @click="openUrl(update.url)"
+              />
+            </div>
+            <div class="text-[12.5px]" :class="update?.state === 'error' ? 'text-(--err)' : 'text-(--muted)'">
+              <template v-if="!updateRepo">Update checks are off in this build. Builds from the release workflow check GitHub for new versions.</template>
+              <template v-else-if="update?.state === 'latest'">You're on the latest version.</template>
+              <template v-else-if="update?.state === 'available'">Esky {{ update.version }} is out. Download the installer and run it to update.</template>
+              <template v-else-if="update?.state === 'error'">{{ update.message }}</template>
+            </div>
           </div>
         </main>
       </div>

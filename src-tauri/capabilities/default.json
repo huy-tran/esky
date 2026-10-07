@@ -28,7 +28,7 @@
     "clipboard-manager:allow-read-text",
     {
       "identifier": "opener:allow-open-url",
-      "allow": [{ "url": "https://*" }, { "url": "http://*" }, { "url": "vscode://*" }, { "url": "cursor://*" }, { "url": "zed://*" },{ "url": "phpstorm://*" }]
+      "allow": [{ "url": "https://*" }, { "url": "http://*" }, { "url": "vscode://*" }, { "url": "cursor://*" }, { "url": "zed://*" },{ "url": "phpstorm://*" }, { "url": "ms-settings:*" }]
     },
     {
       "identifier": "opener:allow-open-path",

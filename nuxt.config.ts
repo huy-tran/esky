@@ -16,7 +16,10 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       // Single source of truth for the version: package.json (tauri.conf.json reads it too).
-      appVersion: pkg.version
+      appVersion: pkg.version,
+      // "owner/repo" whose GitHub releases "Check for updates" looks at. The release workflow sets it;
+      // other builds leave it empty and don't check.
+      updateRepo: process.env.ESKY_UPDATE_REPO ?? ''
     }
   },
   ui: {
