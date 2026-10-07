@@ -27,7 +27,7 @@ import { appName, useApps } from './useApps'
 import { useHotkeys } from './useHotkeys'
 import { useRates } from './useRates'
 import { useQuicklinks } from './useQuicklinks'
-import { useSnippets } from './useSnippets'
+import { fillArgs, snippetArgs, useSnippets, type SnippetArg } from './useSnippets'
 import { fileKind, useFiles } from './useFiles'
 import { useDocker, type DockerKind } from './useDocker'
 import { useForge, type ForgeServer } from './useForge'
@@ -171,7 +171,9 @@ function createLauncher() {
     dictSel: 0,
     trText: '',
     devTool: 'json',
-    devInput: ''
+    devInput: '',
+    /** A snippet asking for its {argument} values before it's pasted or copied. */
+    snArgs: null as null | { name: string, text: string, fields: SnippetArg[], mode: 'paste' | 'copy' }
   })
 
   // Persisted state
@@ -1050,13 +1052,37 @@ function createLauncher() {
       const n = sn.list.value.find(x => x.kw === e.payload)
       if (!n) return
       sn.used(n.id)
+      if (snippetArgs(n.text).length) {
+        // Ask for the values in Esky, then paste back into the app the keyword was typed in.
+        await invoke('snippet_erase', { keywordChars: [...e.payload].length }).catch(() => {})
+        await captureFrom(false)
+        openWin()
+        askArgs(n, 'paste')
+        return
+      }
       invoke('snippet_expand', { keywordChars: [...e.payload].length, text: await snippetText(n.text) })
         .catch(err => toast('error', `Couldn’t expand ${n.kw}`, String(err)))
     })
   }
 
+  function askArgs(n: Snippet, mode: 'paste' | 'copy') {
+    s.snArgs = { name: n.name, text: n.text, fields: snippetArgs(n.text), mode }
+  }
+
+  async function submitArgs() {
+    const a = s.snArgs
+    if (!a) return
+    s.snArgs = null
+    const text = await snippetText(fillArgs(a.text, a.fields))
+    if (a.mode === 'copy') {
+      copyText(text)
+      toast('success', 'Snippet copied', a.name)
+    } else pasteText(text, a.name)
+  }
+
   async function pasteSnippet(n: Snippet) {
     sn.used(n.id)
+    if (snippetArgs(n.text).length) return askArgs(n, 'paste')
     pasteText(await snippetText(n.text), n.name)
   }
 
@@ -1729,7 +1755,8 @@ function createLauncher() {
       case 'split': runSplit(); break
       case 'sncopy': {
         const x = curSplit() as Snippet | undefined
-        if (x) {
+        if (x && snippetArgs(x.text).length) askArgs(x, 'copy')
+        else if (x) {
           snippetText(x.text).then(copyText)
           toast('success', 'Snippet copied', x.name)
         }
@@ -2077,6 +2104,17 @@ function createLauncher() {
       } else if (k === 'Escape') {
         stop()
         s.confirm = null
+      }
+      return
+    }
+    if (s.snArgs) {
+      // Snippet arguments: Enter pastes, Esc cancels; Tab moves between the boxes.
+      if (k === 'Enter' && !sh) {
+        stop()
+        submitArgs()
+      } else if (k === 'Escape') {
+        stop()
+        s.snArgs = null
       }
       return
     }
@@ -2681,7 +2719,7 @@ function createLauncher() {
   return {
     s, els, ready, favs, disabled, usage, recent, aliases, hotkeys, installed, notes, clip, floatId, settings,
     searchModel, clipModel, forgeModel, splitModel, emojiModel, actionsModel, footer,
-    apps, qls, sn, files, docker, dockerModel, remote, remoteModel, submitLogWork, forge, openServer, openForgeList, herd, herdModel, openSite, git, gitModel, pw, copyPassword, dict, dictFlat, openDictionary, tr, trLangs, setLang, swapLangs, openTranslate, dev, openDevTool,
+    apps, qls, sn, files, docker, dockerModel, remote, remoteModel, submitLogWork, forge, openServer, openForgeList, herd, herdModel, openSite, git, gitModel, pw, copyPassword, dict, dictFlat, openDictionary, tr, trLangs, setLang, swapLangs, openTranslate, dev, openDevTool, submitArgs,
     chats, chatGroups, openSavedChat, claude,
     curClip, curSplit, curEmoji, detail, aiCmd, rowKeys, comboOwner, aliasOwner,
     toast, focus, go, openWin, openFromHotkey, openFromTray, activateFromHotkey, back, closeWith, activate, runAction, runSplit, openActions,

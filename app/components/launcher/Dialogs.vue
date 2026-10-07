@@ -103,6 +103,33 @@ const primaryBtn = `${btn} pl-3 pr-2 bg-(--accent) hover:bg-(--accent) text-(--o
     </div>
   </LauncherDialog>
 
+  <!-- Snippet arguments -->
+  <LauncherDialog :open="!!s.snArgs" width-class="w-[440px]" title="Snippet values">
+    <div class="flex items-center gap-2.5">
+      <div class="size-8 rounded-[6px] bg-(--accent-soft) text-(--accent-fg) grid place-items-center"><UIcon name="i-lucide-text-quote" class="size-4" /></div>
+      <div class="min-w-0">
+        <div class="text-[14.5px] font-semibold">Fill in the snippet</div>
+        <div class="text-[12px] text-(--muted) mt-0.5 truncate">{{ s.snArgs?.name }}</div>
+      </div>
+    </div>
+    <template v-if="s.snArgs">
+      <UFormField v-for="(f, i) in s.snArgs.fields" :key="f.name" :label="f.name" :ui="{ root: 'flex flex-col gap-[5px]', label: 'text-[12px] font-semibold text-(--fg)', container: 'mt-0' }">
+        <UInput
+          v-model="f.value"
+          spellcheck="false"
+          autocomplete="off"
+          variant="none"
+          :autofocus="i === 0"
+          :ui="{ base: 'h-[36px] border border-(--bd) rounded-[6px] bg-(--input-bg) text-(--fg) px-3 text-[14px] focus-visible:outline-2 focus-visible:outline-(--accent)' }"
+        />
+      </UFormField>
+    </template>
+    <div class="flex gap-2 justify-end">
+      <UButton tabindex="-1" :class="secondary" @click="s.snArgs = null">Cancel<Keys :keys="['Esc']" size="btn" /></UButton>
+      <UButton tabindex="-1" :class="primaryBtn" @click="L.submitArgs()">{{ s.snArgs?.mode === 'copy' ? 'Copy' : s.target ? `Paste into ${s.target.app}` : 'Copy' }}<Keys :keys="['↵']" size="accent" /></UButton>
+    </div>
+  </LauncherDialog>
+
   <!-- Jira: Log Work -->
   <LauncherDialog :open="!!s.logWork" width-class="w-[440px]" title="Log work">
     <div class="flex items-center gap-2.5">

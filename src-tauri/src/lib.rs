@@ -506,6 +506,13 @@ async fn snippet_expand(keyword_chars: usize, text: String) -> Result<(), String
     .await?
 }
 
+/// Delete the keyword just typed, for a snippet that asks for values before it's pasted.
+#[cfg(windows)]
+#[tauri::command]
+async fn snippet_erase(keyword_chars: usize) -> Result<(), String> {
+    blocking(move || expand::erase(keyword_chars)).await
+}
+
 // Window Layouts (see window.rs).
 
 #[cfg(windows)]
@@ -734,6 +741,7 @@ pub fn run() {
             copy_private,
             snippet_keywords,
             snippet_expand,
+            snippet_erase,
             window_layout,
             files_index,
             files_search,

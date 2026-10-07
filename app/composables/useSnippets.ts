@@ -8,6 +8,34 @@ export interface SnippetInput { name: string, kw: string, folder: string, text: 
 /** {date}, {time}, {clipboard} and {cursor} are filled in when the snippet is used. */
 export const SNIPPET_PLACEHOLDERS = ['{date}', '{time}', '{clipboard}', '{cursor}']
 
+/** A value the snippet asks for: {argument name="ticket" default="ABC-1"}. */
+export interface SnippetArg { name: string, value: string }
+
+const ARG_RX = /\{argument((?:\s+\w+="[^"]*")*)\s*\}/g
+const attrs = (s: string) => Object.fromEntries([...s.matchAll(/(\w+)="([^"]*)"/g)].map(m => [m[1]!, m[2]!]))
+
+/** The values a snippet asks for, in order. The same name asks once; each unnamed one asks separately. */
+export function snippetArgs(text: string): SnippetArg[] {
+  const out: SnippetArg[] = []
+  let unnamed = 0
+  for (const m of text.matchAll(ARG_RX)) {
+    const a = attrs(m[1] ?? '')
+    const name = a.name?.trim() || `Argument ${++unnamed}`
+    if (!out.some(x => x.name === name)) out.push({ name, value: a.default ?? '' })
+  }
+  return out
+}
+
+/** The snippet with your values in place of its {argument …} placeholders. */
+export function fillArgs(text: string, args: SnippetArg[]): string {
+  let unnamed = 0
+  return text.replace(ARG_RX, (_m, raw: string) => {
+    const a = attrs(raw ?? '')
+    const name = a.name?.trim() || `Argument ${++unnamed}`
+    return args.find(x => x.name === name)?.value ?? a.default ?? ''
+  })
+}
+
 export function snippetErrors(s: SnippetInput, others: Snippet[]): string[] {
   const errors: string[] = []
   if (!s.name.trim()) errors.push('Give it a name.')

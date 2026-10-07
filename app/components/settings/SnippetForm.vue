@@ -28,7 +28,7 @@ const input = 'h-8 w-full border border-(--bd) rounded-[6px] bg-(--input-bg) tex
       <span :class="label">Text</span>
       <textarea v-model="model.text" rows="4" spellcheck="false" class="w-full border border-(--bd) rounded-[6px] bg-(--input-bg) text-(--fg) px-2.5 py-1.5 text-[12.5px] leading-[1.6] resize-y focus-visible:outline-2 focus-visible:outline-(--accent)" />
       <span class="text-[11.5px] text-(--muted)">
-        Filled in when used: <span v-for="p in SNIPPET_PLACEHOLDERS" :key="p" class="font-mono text-(--fg) mr-1.5">{{ p }}</span>({cursor} is removed). A keyword like <span class="font-mono text-(--fg)">;sig</span> starting with a symbol won't fire while you type normal words.
+        Filled in when used: <span v-for="p in SNIPPET_PLACEHOLDERS" :key="p" class="font-mono text-(--fg) mr-1.5">{{ p }}</span>({cursor} is removed). <span class="font-mono text-(--fg)">{argument name="ticket"}</span> asks for a value first (add <span class="font-mono text-(--fg)">default="…"</span> to fill one in). A keyword like <span class="font-mono text-(--fg)">;sig</span> starting with a symbol won't fire while you type normal words.
       </span>
     </label>
     <div v-if="errors.length" class="col-span-3 flex flex-col gap-0.5 text-[12px] text-(--err)">
