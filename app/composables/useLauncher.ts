@@ -764,7 +764,10 @@ function createLauncher() {
     } else if (s.view === 'clipboard') {
       const c = curClip()
       target = c ? trunc(clipPreview(c), 40) : 'Clipboard'
-      list = [O('cpaste', s.target ? `Paste into ${s.target.app}` : 'Copy and Close', 'i-lucide-clipboard-paste', ['↵']), O('ccopy', 'Copy', 'i-lucide-copy', ['Ctrl', 'C']), O('cpin', c?.pinned ? 'Unpin' : 'Pin', 'i-lucide-pin', ['Ctrl', 'P']), O('cdelete', 'Delete', 'i-lucide-trash-2', ['Ctrl', '⌫'], true), O('cclear', 'Clear History', 'i-lucide-eraser', [], true)]
+      list = [O('cpaste', s.target ? `Paste into ${s.target.app}` : 'Copy and Close', 'i-lucide-clipboard-paste', ['↵']), O('ccopy', 'Copy', 'i-lucide-copy', ['Ctrl', 'C']),
+        ...(c?.kind === 'image' ? [O('cocr', 'Copy Text from Image', 'i-lucide-scan-text', ['Ctrl', 'Shift', 'T'])] : []),
+        ...(c?.kind === 'files' ? [O('cplain', s.target ? 'Paste Paths as Text' : 'Copy Paths as Text', 'i-lucide-type', ['Ctrl', 'Shift', '↵'])] : []),
+        O('cpin', c?.pinned ? 'Unpin' : 'Pin', 'i-lucide-pin', ['Ctrl', 'P']), O('cdelete', 'Delete', 'i-lucide-trash-2', ['Ctrl', '⌫'], true), O('cclear', 'Clear History', 'i-lucide-eraser', [], true)]
     } else if (s.view === 'forgeList' || s.view === 'forgeDetail') {
       const sv = s.view === 'forgeList' ? forgeModel.value.flat[s.forgeSel] : s.server
       target = sv ? sv.name : ''
@@ -904,6 +907,27 @@ function createLauncher() {
       s.open = true
       toast('error', `Couldn’t paste into ${app}`, `${String(e)}. It's on the clipboard instead.`)
     }))
+  }
+
+  /** Read the text in a Clipboard History image (Windows OCR) and copy it. */
+  async function copyImageText(file: string) {
+    const { invoke } = await import('@tauri-apps/api/core')
+    toast('info', 'Reading text in the image…', '')
+    try {
+      const text = (await invoke<string>('clipboard_ocr', { file })).trim()
+      if (!text) return toast('info', 'No text found in this image', '')
+      copyText(text)
+      toast('success', 'Text copied', trunc(text.replace(/\s+/g, ' '), 60))
+    } catch (e) {
+      toast('error', 'Couldn’t read the image', String(e))
+    }
+  }
+
+  /** Paste what's on the clipboard without its formatting (from Word, web pages, …). */
+  async function pastePlain() {
+    const text = await readClipboardText()
+    if (!text) return toast('info', 'There’s no text on the clipboard', '')
+    pasteText(text, 'plain text')
   }
 
   /** A snippet's text with {date}, {time} and {clipboard} filled in, and {cursor} dropped. */
@@ -1172,6 +1196,7 @@ function createLauncher() {
     if (it.go === 'password') return openPassword()
     if (it.go === 'dictionary') return openDictionary()
     if (it.go === 'translate') return openTranslate()
+    if (it.go === 'plainPaste') return pastePlain()
     if (it.go === 'devtool') return openDevTool(id.slice(4))
     if (it.go === 'deploy') return openDeployDefault()
     if (it.go === 'theme') {
@@ -1836,6 +1861,8 @@ function createLauncher() {
         break
       }
       case 'cpaste': if (c) pasteClip(c); break
+      case 'cplain': if (c?.files) pasteText(c.files.join('\r\n'), c.files.length > 1 ? `${c.files.length} paths` : 'the path'); break
+      case 'cocr': if (c?.imageFile) copyImageText(c.imageFile); break
       case 'ccopy': if (c) {
         clipboard.copy(c).then(() => toast('success', 'Copied to clipboard', trunc(clipPreview(c), 48)))
       } break
@@ -2304,6 +2331,12 @@ function createLauncher() {
       } else if (ctrl && kl === 'c' && n && !hasInputSel()) {
         stop()
         runAction('ccopy')
+      } else if (ctrl && sh && kl === 't' && n) {
+        stop()
+        runAction('cocr')
+      } else if (ctrl && sh && k === 'Enter' && n && curClip()?.kind === 'files') {
+        stop()
+        runAction('cplain')
       } else if (ctrl && kl === 'p' && n) {
         stop()
         runAction('cpin')

@@ -34,6 +34,10 @@ ureq = { version = "3", features = ["json"] }
 windows = { version = "0.62", features = [
   "Foundation",
   "Foundation_Collections",
+  "Graphics_Imaging",
+  "Media_Ocr",
+  "Storage",
+  "Storage_Streams",
   "Media_Control",
   "Win32_Foundation",
   "Win32_Graphics_Dwm",

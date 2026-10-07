@@ -464,6 +464,20 @@ async fn clipboard_paste(app: AppHandle, text: Option<String>, image_file: Optio
     blocking(move || input::paste_formats(target, &clipboard::entry_formats(text, image_file, files)?)).await?
 }
 
+#[cfg(windows)]
+mod ocr;
+
+/// The text in a saved clipboard image (Windows OCR). Only files in Esky's clipboard folder.
+#[cfg(windows)]
+#[tauri::command]
+async fn clipboard_ocr(app: AppHandle, file: String) -> Result<String, String> {
+    let dir = clipboard_images(&app)?;
+    if std::path::Path::new(&file).parent() != Some(dir.as_path()) {
+        return Err("Not a clipboard image".into());
+    }
+    blocking(move || ocr::read(&file)).await?
+}
+
 /// Delete a saved image when its history entry goes. Only files in Esky's clipboard folder.
 #[tauri::command]
 fn clipboard_forget_image(app: AppHandle, file: String) -> Result<(), String> {
@@ -738,6 +752,7 @@ pub fn run() {
             clipboard_copy,
             clipboard_paste,
             clipboard_forget_image,
+            clipboard_ocr,
             copy_private,
             snippet_keywords,
             snippet_expand,
