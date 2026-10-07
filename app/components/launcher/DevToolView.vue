@@ -11,7 +11,7 @@ onBeforeUnmount(() => {
   L.els.dev = null
 })
 
-const selectUi = { base: 'h-8 rounded-[6px] border border-(--bd) bg-(--input-bg) text-(--fg) text-[13px] pl-2.5 pr-8', leadingIcon: 'size-3.5 text-(--muted)', trailingIcon: 'size-3.5 text-(--muted)', content: 'bg-(--pop-bg) ring-(--win-bd) min-w-[220px]', item: 'text-[13px]', input: 'text-[13px]' }
+const selectUi = { base: 'h-8 rounded-[6px] border border-(--bd) bg-(--input-bg) text-(--fg) text-[13px] ps-8 pr-8', leading: 'ps-2.5', leadingIcon: 'size-3.5 text-(--muted)', trailingIcon: 'size-3.5 text-(--muted)', content: 'bg-(--pop-bg) ring-(--win-bd) min-w-[220px]', item: 'text-[13px]', input: 'text-[13px]' }
 const pane = 'flex-1 min-w-0 flex flex-col rounded-[8px] border border-(--bd) overflow-hidden'
 const paneHead = 'h-8 flex-none flex items-center gap-2 px-3 border-b border-(--bd) text-[11.5px] font-semibold tracking-[.04em] uppercase text-(--faint)'
 const paneFoot = 'h-8 flex-none flex items-center gap-2 px-3 text-[12px] text-(--muted)'

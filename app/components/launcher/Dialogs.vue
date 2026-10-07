@@ -120,6 +120,7 @@ const primaryBtn = `${btn} pl-3 pr-2 bg-(--accent) hover:bg-(--accent) text-(--o
           autocomplete="off"
           variant="none"
           :autofocus="i === 0"
+          class="w-full"
           :ui="{ base: 'h-[36px] border border-(--bd) rounded-[6px] bg-(--input-bg) text-(--fg) px-3 text-[14px] focus-visible:outline-2 focus-visible:outline-(--accent)' }"
         />
       </UFormField>

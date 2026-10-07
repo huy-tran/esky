@@ -62,14 +62,14 @@ const ghostBtn = 'h-8 px-3 gap-1.5 rounded-[6px] ring-0 border border-(--bd) bg-
       <div v-if="editing" class="p-4 flex flex-col gap-3">
         <div class="flex gap-3">
           <UFormField label="Name" class="flex-1" :ui="labelUi">
-            <UInput v-model="draft.title" placeholder="e.g. Rewrite as a Jira ticket" variant="none" :ui="{ base: `${field} h-8 px-2.5` }" />
+            <UInput v-model="draft.title" placeholder="e.g. Rewrite as a Jira ticket" variant="none" class="w-full" :ui="{ base: `${field} h-8 px-2.5` }" />
           </UFormField>
           <UFormField label="Icon" :ui="labelUi">
-            <USelectMenu v-model="draft.icon" :items="icons" value-key="value" :icon="draft.icon" variant="none" :search-input="false" class="w-[150px]" :ui="{ base: `${field} h-8 pl-2.5 pr-8`, leadingIcon: 'size-3.5', content: 'bg-(--pop-bg) ring-(--bd)', item: 'text-[12.5px] capitalize', value: 'capitalize' }" />
+            <USelectMenu v-model="draft.icon" :items="icons" value-key="value" :icon="draft.icon" variant="none" :search-input="false" class="w-[150px]" :ui="{ base: `${field} h-8 ps-8 pr-8`, leading: 'ps-2.5', leadingIcon: 'size-3.5', content: 'bg-(--pop-bg) ring-(--bd)', item: 'text-[12.5px] capitalize', value: 'capitalize' }" />
           </UFormField>
         </div>
         <UFormField label="What should Claude do with the text?" help="Claude gets this instruction and your selected text, and replies with only the result." :ui="labelUi">
-          <UTextarea v-model="draft.prompt" :rows="4" placeholder="e.g. Rewrite this as a Jira ticket with a short title, a description and acceptance criteria." variant="none" :ui="{ base: `${field} px-2.5 py-2 resize-none leading-[1.5]` }" />
+          <UTextarea v-model="draft.prompt" :rows="4" class="w-full" placeholder="e.g. Rewrite this as a Jira ticket with a short title, a description and acceptance criteria." variant="none" :ui="{ base: `${field} px-2.5 py-2 resize-none leading-[1.5]` }" />
         </UFormField>
         <div v-if="tried && errors.length" class="text-[12px] text-(--err)">{{ errors.join(' ') }}</div>
         <div class="flex gap-2 justify-end">

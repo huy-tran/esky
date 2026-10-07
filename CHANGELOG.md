@@ -21,6 +21,16 @@ All notable changes to Esky are listed here. The format follows [Keep a Changelo
 - GitHub, Jira (including Log Work) and Sentry commands that load your own data.
 - AI Chat and Quick AI can use an Anthropic API key instead of Claude Code, with a choice of model.
 - Google Translate: translate between two languages you pick (remembered), in either direction, with side-by-side text boxes; `tr` and your text from root search, or Ctrl 5 on selected text.
+- Your own AI commands (Settings → AI): a name, an icon and an instruction; they run on selected text like Fix Grammar.
+- Snippets can ask for values first with `{argument name="…"}`, also when expanded by typing their keyword.
+- Developer Tools: format and minify JSON, Base64 and URL encode/decode, MD5 and SHA hashes, timestamps, JWT decoding and UUIDs.
+- Times and dates in search: "time in Tokyo", "3pm Sydney in London", "days until Christmas", "today + 90 days" and Unix timestamps.
+- Switch Windows, and open windows in search results: type an app's name to jump to its window.
+- Paste as Plain Text, and Copy Text from Image in Clipboard History (Windows text recognition, on this PC).
+- Choose what search offers when nothing matches (Settings → Quicklinks), including your quicklinks.
+- Export and import your setup (Settings → General).
+- Updates install themselves: Esky checks daily and offers new versions when you open it, or from Settings → About.
+- Google Calendar: open your calendar, today, or a new event.
 
 ### Removed
 
