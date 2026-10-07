@@ -527,6 +527,44 @@ async fn snippet_erase(keyword_chars: usize) -> Result<(), String> {
     blocking(move || expand::erase(keyword_chars)).await
 }
 
+// Switch Windows (see switcher.rs).
+
+#[cfg(windows)]
+mod switcher;
+
+/// The open app windows, most recently used first.
+#[cfg(windows)]
+#[tauri::command]
+async fn windows_list() -> Result<Vec<switcher::OpenWindow>, String> {
+    blocking(switcher::list).await
+}
+
+/// Icons for programs (.exe paths), as PNG data URLs. Programs without one are left out.
+#[cfg(windows)]
+#[tauri::command]
+async fn exe_icons(paths: Vec<String>) -> Result<HashMap<String, String>, String> {
+    blocking(move || {
+        paths
+            .into_iter()
+            .filter(|p| p.to_lowercase().ends_with(".exe") && std::path::Path::new(p).is_file())
+            .filter_map(|p| apps::shell_image_once(&p, 32, true).ok().map(|i| (p, i)))
+            .collect()
+    })
+    .await
+}
+
+#[cfg(windows)]
+#[tauri::command]
+async fn window_focus(id: isize) -> Result<(), String> {
+    blocking(move || switcher::focus(id)).await?
+}
+
+#[cfg(windows)]
+#[tauri::command]
+async fn window_close(id: isize) -> Result<(), String> {
+    blocking(move || switcher::close(id)).await?
+}
+
 // Window Layouts (see window.rs).
 
 #[cfg(windows)]
@@ -758,6 +796,10 @@ pub fn run() {
             snippet_expand,
             snippet_erase,
             window_layout,
+            windows_list,
+            exe_icons,
+            window_focus,
+            window_close,
             files_index,
             files_search,
             files_recent,

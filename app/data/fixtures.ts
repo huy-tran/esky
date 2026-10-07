@@ -275,6 +275,7 @@ Object.assign(ITEMS, {
   notesCmd: { title: 'Floating Notes', sub: 'Esky', icon: 'i-lucide-sticky-note', kind: 'cmd', go: 'notes' },
   tourCmd: { title: 'Welcome Tour', sub: 'Esky', icon: 'i-lucide-party-popper', kind: 'cmd', go: 'onboard' },
   herdSites: { title: 'Herd Sites', sub: 'Laravel Herd', icon: 'i-lucide-feather', tile: '#E11D48', kind: 'cmd', go: 'herdList' },
+  switchCmd: { title: 'Switch Windows', sub: 'Window Management', icon: 'i-lucide-app-window', tile: '#4F46E5', kind: 'cmd', go: 'switch' },
   plainPaste: { title: 'Paste as Plain Text', sub: 'Clipboard', icon: 'i-lucide-clipboard-type', tile: '#0D9488', kind: 'cmd', go: 'plainPaste' },
   trCmd: { title: 'Google Translate', sub: 'Translate between two languages', icon: 'i-lucide-languages', tile: '#1A73E8', kind: 'cmd', go: 'translate' },
   dictCmd: { title: 'Dictionary', sub: 'Define an English word', icon: 'i-lucide-book-a', tile: '#0369A1', kind: 'cmd', go: 'dictionary' },

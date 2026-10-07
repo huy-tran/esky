@@ -39,7 +39,7 @@ import { captureTarget, clearTarget, copyText, ejectDrive, floatNote, hideWindow
 import { persistRef } from './usePersist'
 import { useSettings } from './useSettings'
 
-export type View = 'search' | 'clipboard' | 'chat' | 'aiResult' | 'forgeList' | 'forgeDetail' | 'deploy' | 'emoji' | 'herdList' | 'gitList' | 'password' | 'dockerList' | 'remoteList' | 'dictionary' | 'translate' | 'devtool' | SplitView
+export type View = 'search' | 'clipboard' | 'chat' | 'aiResult' | 'forgeList' | 'forgeDetail' | 'deploy' | 'emoji' | 'herdList' | 'gitList' | 'password' | 'dockerList' | 'remoteList' | 'dictionary' | 'translate' | 'devtool' | 'switch' | SplitView
 
 /** Senses shown per part of speech; the rest are one Ctrl O away on Wiktionary. */
 export const DICT_SENSES = 8
@@ -170,6 +170,8 @@ function createLauncher() {
     dictWord: '',
     dictSel: 0,
     trText: '',
+    switchQuery: '',
+    switchSel: 0,
     devTool: 'json',
     devInput: '',
     /** A snippet asking for its {argument} values before it's pasted or copied. */
@@ -193,6 +195,7 @@ function createLauncher() {
   const chats = ref<SavedChat[]>([])
   const claude = useClaude()
   const aic = useAiCommands()
+  const openWins = useOpenWindows()
   const onboarded = ref(false)
   /** Google Translate's language pair. */
   const trLangs = ref<[string, string]>(defaultPair())
@@ -518,6 +521,23 @@ function createLauncher() {
     go('translate', { trText: text ?? s.selection?.text ?? '', query: '' })
   }
 
+  // ---------- Switch Windows ----------
+
+  const switchModel = computed(() => openWins.match(s.switchQuery))
+  const curWin = () => switchModel.value[Math.min(s.switchSel, Math.max(0, switchModel.value.length - 1))]
+
+  function openSwitcher() {
+    go('switch', { switchQuery: '', switchSel: 0 })
+    openWins.load()
+  }
+
+  function focusWindow(w: OpenWindow) {
+    openWins.focus(w).catch(e => toast('error', 'Couldn’t switch to that window', String(e)))
+    closeWith(`Switched to ${programName(w.exe) || w.title}`)
+  }
+
+  const winRow = (w: OpenWindow): Row => ({ key: `win:${w.id}`, title: w.title, sub: programName(w.exe) || 'Window', icon: (w.exe && openWins.icons.value[w.exe]) || 'i-lucide-app-window', kind: 'cmd', label: 'Open window', run: () => focusWindow(w) })
+
   // ---------- Developer tools ----------
 
   const dev = reactive({ out: '', error: '' })
@@ -616,6 +636,12 @@ function createLauncher() {
         if (sites.length) {
           const at = sections.findLastIndex(x => x.title === 'Applications' || x.title === 'Commands' || x.title === 'Alias') + 1
           sections.splice(at, 0, { title: 'Herd Sites', rows: sites })
+        }
+        // Open windows matching the text, after the apps: type "slack" to jump to Slack's window.
+        const wins = ql.length >= 2 ? openWins.match(ql).slice(0, 3).map(winRow) : []
+        if (wins.length) {
+          const at = sections.findIndex(x => x.title === 'Applications') + 1
+          sections.splice(at, 0, { title: 'Open Windows', rows: wins })
         }
         // A few file matches at the end (File Search preferences).
         const fileRows = rootFiles.value.slice(0, 5).map((x): Row => ({ key: `file:${x.id}`, title: x.name, sub: x.dir, ...kindOf(x), kind: 'file', label: 'File', hl: ql, path: x.id, run: () => closeWith(`Opened ${x.name}`, () => openUrl(x.id)) }))
@@ -813,6 +839,10 @@ function createLauncher() {
     } else if (s.view === 'dictionary') {
       target = dict.entry?.word || 'Dictionary'
       list = [O('dcopy', 'Copy Definition', 'i-lucide-copy', ['↵']), O('dword', 'Copy Word', 'i-lucide-type', ['Ctrl', 'Shift', 'C']), O('dopen', 'Open in Wiktionary', 'i-lucide-external-link', ['Ctrl', 'O'])]
+    } else if (s.view === 'switch') {
+      const w = curWin()
+      target = w ? trunc(w.title, 40) : 'Switch Windows'
+      list = [O('wfocus', 'Switch to Window', 'i-lucide-app-window', ['↵']), O('wclose', 'Close Window', 'i-lucide-x', ['Ctrl', 'W'], true), O('wreload', 'Refresh', 'i-lucide-refresh-cw', ['Ctrl', 'R'])]
     } else if (s.view === 'devtool') {
       target = devTool(s.devTool).title
       list = [s.target ? O('vpaste', `Paste into ${s.target.app}`, 'i-lucide-clipboard-paste', ['↵']) : O('vpaste', 'Copy and Close', 'i-lucide-clipboard-copy', ['↵']), O('vcopy', 'Copy Result', 'i-lucide-copy', ['Ctrl', 'C']), O('vrun', 'Run Again', 'i-lucide-refresh-cw', ['Ctrl', 'R'])]
@@ -1197,6 +1227,7 @@ function createLauncher() {
     if (it.go === 'dictionary') return openDictionary()
     if (it.go === 'translate') return openTranslate()
     if (it.go === 'plainPaste') return pastePlain()
+    if (it.go === 'switch') return openSwitcher()
     if (it.go === 'devtool') return openDevTool(id.slice(4))
     if (it.go === 'deploy') return openDeployDefault()
     if (it.go === 'theme') {
@@ -2056,6 +2087,13 @@ function createLauncher() {
         }
         break
       case 'tswap': swapLangs(); break
+      case 'wfocus': { const w = curWin(); if (w) focusWindow(w); break }
+      case 'wclose': {
+        const w = curWin()
+        if (w) openWins.close(w).then(() => toast('success', 'Asked the window to close', trunc(w.title, 48))).catch(e => toast('error', 'Couldn’t close it', String(e)))
+        break
+      }
+      case 'wreload': openWins.load(); break
       case 'vpaste':
         if (dev.out) pasteText(dev.out, devTool(s.devTool).title.toLowerCase().includes('uuid') ? 'the UUIDs' : 'the result')
         break
@@ -2464,6 +2502,26 @@ function createLauncher() {
       }
       return
     }
+    if (v === 'switch') {
+      const n = switchModel.value.length
+      if (k === 'ArrowDown' && n) {
+        stop()
+        s.switchSel = (s.switchSel + 1) % n
+      } else if (k === 'ArrowUp' && n) {
+        stop()
+        s.switchSel = (s.switchSel - 1 + n) % n
+      } else if (k === 'Enter' && n) {
+        stop()
+        runAction('wfocus')
+      } else if (ctrl && kl === 'w' && n) {
+        stop()
+        runAction('wclose')
+      } else if (ctrl && kl === 'r') {
+        stop()
+        runAction('wreload')
+      }
+      return
+    }
     if (v === 'gitList') {
       const n = gitModel.value.flat.length
       if (k === 'ArrowDown' && n) {
@@ -2678,6 +2736,7 @@ function createLauncher() {
     }
     if (v === 'password') return { app: { icon: 'i-lucide-key-round', tile: '#175DDC', name: 'Password Generator' }, hints: [hint('Copy', ['↵'], () => runAction('pwcopy'), true), hint('Regenerate', ['Ctrl', 'R'], () => runAction('pwnew')), act] }
     if (v === 'dictionary') return { app: { icon: 'i-lucide-book-a', tile: '#0369A1', name: 'Dictionary' }, hints: [hint('Copy', ['↵'], () => runAction('dcopy'), true), hint('Wiktionary', ['Ctrl', 'O'], () => runAction('dopen')), act] }
+    if (v === 'switch') return { app: { icon: 'i-lucide-app-window', tile: '#4F46E5', name: 'Switch Windows' }, hints: [hint('Switch', ['↵'], () => runAction('wfocus'), true), hint('Close Window', ['Ctrl', 'W'], () => runAction('wclose')), act] }
     if (v === 'devtool') return { app: { icon: 'i-lucide-wrench', tile: '#0F766E', name: 'Developer Tools' }, hints: [hint(s.target ? 'Paste' : 'Copy', ['↵'], () => runAction('vpaste'), true), hint('Run Again', ['Ctrl', 'R'], () => runAction('vrun')), act] }
     if (v === 'translate') return { app: { icon: 'i-lucide-languages', tile: '#1A73E8', name: 'Google Translate' }, hints: [hint(s.target ? 'Paste' : 'Copy', ['↵'], () => runAction('tpaste'), true), hint('Swap', ['Ctrl', 'S'], () => runAction('tswap')), act] }
     if (v === 'forgeList') return { app: FORGE, hints: [hint('Show Details', ['↵'], () => runAction('fopen'), true), hint('Deploy', ['Ctrl', 'D'], () => runAction('fdeploy')), act] }
@@ -2705,6 +2764,7 @@ function createLauncher() {
       showWindow(settings.value.activeMonitor)
       // Pick up apps installed since the list was read.
       apps.refreshIfStale()
+      openWins.load()
       rates.refresh()
     } else hideWindow()
   })
@@ -2752,7 +2812,7 @@ function createLauncher() {
   return {
     s, els, ready, favs, disabled, usage, recent, aliases, hotkeys, installed, notes, clip, floatId, settings,
     searchModel, clipModel, forgeModel, splitModel, emojiModel, actionsModel, footer,
-    apps, qls, sn, files, docker, dockerModel, remote, remoteModel, submitLogWork, forge, openServer, openForgeList, herd, herdModel, openSite, git, gitModel, pw, copyPassword, dict, dictFlat, openDictionary, tr, trLangs, setLang, swapLangs, openTranslate, dev, openDevTool, submitArgs,
+    apps, qls, sn, files, docker, dockerModel, remote, remoteModel, submitLogWork, forge, openServer, openForgeList, herd, herdModel, openSite, git, gitModel, pw, copyPassword, dict, dictFlat, openDictionary, tr, trLangs, setLang, swapLangs, openTranslate, dev, openDevTool, submitArgs, openWins, switchModel,
     chats, chatGroups, openSavedChat, claude,
     curClip, curSplit, curEmoji, detail, aiCmd, rowKeys, comboOwner, aliasOwner,
     toast, focus, go, openWin, openFromHotkey, openFromTray, activateFromHotkey, back, closeWith, activate, runAction, runSplit, openActions,

@@ -43,6 +43,7 @@ const toaster = {
         <LauncherDictionaryView v-else-if="s.view === 'dictionary'" />
         <LauncherTranslateView v-else-if="s.view === 'translate'" />
         <LauncherDevToolView v-else-if="s.view === 'devtool'" />
+        <LauncherSwitcherList v-else-if="s.view === 'switch'" />
       </div>
       <LauncherActionsMenu v-if="s.actionsOpen" />
     </div>
