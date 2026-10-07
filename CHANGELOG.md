@@ -2,6 +2,12 @@
 
 All notable changes to Esky are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Added
+
+- Google Maps: `gm` and a place or address (e.g. `gm Hunter Valley`, `gm 43 Baxter Street, QLD 4000`) finds it on the map or opens directions to it.
+
 ## 0.2.1 - 2026-10-07
 
 ### Added

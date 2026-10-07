@@ -671,7 +671,7 @@ function createLauncher() {
     if (key === 'wg') return openUrl(`https://www.google.com/search?q=${t}`)
     if (key === 'wgh') return openUrl(`https://github.com/search?q=${t}`)
     if (key === 'wl') return openUrl(`https://laravel.com/framework/docs/search?q=${t}`)
-    if (key === 'ql') return openUrl(sub)
+    if (key === 'ql' || key === 'gm' || key === 'gmd') return openUrl(sub)
   }
 
   const clipModel = computed(() => {

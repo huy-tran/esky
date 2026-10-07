@@ -1,4 +1,4 @@
-// Quick tools for the root search: quicklink keywords, `g` web search, currency, units and maths.
+// Quick tools for the root search: quicklink keywords, `g` web search, `gm` Google Maps, currency, units and maths.
 import { DIM, RATES, UNITS, type Quicklink } from '~/data/fixtures'
 import { fmt } from './text'
 import { timeQuery } from './timecalc'
@@ -116,6 +116,16 @@ export function quick(q: string, opts: QuickOptions = {}): QuickResult {
     const arg = ws.slice(1).join(' ')
     const url = resolve(qq, arg)
     return { title: 'Quicklink', rows: [{ key: 'ql', title: `${qq.name}: ${arg}`, sub: url, icon: qq.icon, tile: qq.tile, kind: 'link', action: { type: 'close', msg: `Opened ${url}` } }] }
+  }
+
+  if ((m = q.trim().match(/^gm\s+(.+)$/i))) {
+    const t = m[1]!
+    const place = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(t)}`
+    const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(t)}`
+    return { title: 'Google Maps', rows: [
+      { key: 'gm', title: `Find “${t}” on Google Maps`, sub: place, icon: 'i-lucide-map-pin', tile: '#34A853', action: { type: 'close', msg: `Opened “${t}” in Google Maps` } },
+      { key: 'gmd', title: `Directions to “${t}”`, sub: route, icon: 'i-lucide-navigation', tile: '#1A73E8', action: { type: 'close', msg: `Opened directions to “${t}”` } }
+    ] }
   }
 
   if ((m = q.trim().match(/^g\s+(.+)$/i))) {
