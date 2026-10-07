@@ -2,6 +2,21 @@
 
 Keyboard launcher for Windows. Nuxt 4 + Nuxt UI v4 + Tailwind v4, packaged with Tauri 2.
 
+Press Alt Space anywhere to search apps, files, commands and open windows, and to calculate, convert currencies and units, and work out times across time zones.
+
+![Root search converting 3pm Sydney to London time](docs/screenshots/search.png)
+
+| | |
+|---|---|
+| ![Clipboard History with text, links, colours and code](docs/screenshots/clipboard.png) | ![AI Chat answering a Laravel question](docs/screenshots/chat.png) |
+| **Clipboard History.** Text, links, colours, images and files, pinned or pasted back into the app you came from. | **AI Chat and Quick AI.** Through your Claude Code login or an Anthropic API key, plus your own AI commands for selected text. |
+| ![Google Translate between English and Spanish](docs/screenshots/translate.png) | ![Developer Tools formatting JSON](docs/screenshots/devtools.png) |
+| **Google Translate.** Between two languages you pick, in either direction. | **Developer Tools.** JSON, Base64, URL encoding, hashes, timestamps, JWTs and UUIDs. |
+
+Also: snippets with typed-keyword expansion, quicklinks, window layouts and switching, file search, colour picker, media controls, password generator, dictionary, and extensions for Laravel Forge, Herd, GitHub, Jira, Sentry, Docker and Google Calendar.
+
+![Settings window, Extensions tab](docs/screenshots/settings.png)
+
 ## Requirements
 
 - Node 22+
@@ -28,7 +43,7 @@ In the browser build there is no tray: press Alt Space (or click the "Esky is hi
 
 ### Jump to a state (dev only)
 
-`http://localhost:1420/?scene=<key>` opens the launcher in a given state, e.g. `?scene=approval`, `?scene=hkConflict`, `?scene=onboard`. Keys are listed in `app/composables/useScene.ts`.
+`http://localhost:1420/?scene=<key>` opens the launcher in a given state, e.g. `?scene=clip`, `?scene=hkConflict`, `?scene=onboard`. Keys are listed in `app/composables/useScene.ts`.
 
 ## Layout
 
