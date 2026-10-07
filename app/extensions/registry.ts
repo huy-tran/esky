@@ -110,9 +110,9 @@ export const EXTENSIONS: ExtensionDef[] = [
     tile: '#B91C1C',
     ver: '1.1.0',
     desc: 'Jump to any page of the Laravel documentation.',
-    commands: [{ id: 'open', title: 'Open Laravel Docs', url: p => `https://laravel.com/docs/${p.version}` }],
+    commands: [{ id: 'open', title: 'Open Laravel Docs', url: p => `https://laravel.com/framework/docs/${p.version}` }],
     prefs: [
-      { key: 'version', type: 'select', label: 'Docs version', description: 'Also used by the “ld” quicklink.', default: '12.x', options: ['12.x', '11.x', '10.x', 'master'].map(v => ({ value: v, label: v })) }
+      { key: 'version', type: 'select', label: 'Docs version', description: 'master is the latest. Also used by the “ld” quicklink.', default: 'master', options: ['master', '13.x', '12.x', '11.x'].map(v => ({ value: v, label: v })) }
     ]
   },
   {

@@ -269,7 +269,7 @@ function createLauncher() {
 
   /** Quicklink URL with the Laravel Docs version preference applied (the "ld" quicklink). */
   const resolveQ = (q: Quicklink, arg: string) =>
-    resolveQuicklink(q, arg).replace(/laravel\.com\/docs\/[^/]+\//, `laravel.com/docs/${exts.prefsFor('docs').version || '12.x'}/`)
+    resolveQuicklink(q, arg).replace(/laravel\.com\/(?:framework\/)?docs\/[^/]+\//, `laravel.com/framework/docs/${exts.prefsFor('docs').version || 'master'}/`)
 
   /** Calculator preferences, and quicklinks resolved as above. */
   const quickOpts = () => {
@@ -535,7 +535,7 @@ function createLauncher() {
     const t = encodeURIComponent(m?.[1] ?? '')
     if (key === 'wg') return openUrl(`https://www.google.com/search?q=${t}`)
     if (key === 'wgh') return openUrl(`https://github.com/search?q=${t}`)
-    if (key === 'wl') return openUrl(`https://laravel.com/docs/search?q=${t}`)
+    if (key === 'wl') return openUrl(`https://laravel.com/framework/docs/search?q=${t}`)
     if (key === 'ql') return openUrl(sub)
   }
 

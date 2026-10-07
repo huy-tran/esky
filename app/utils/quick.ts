@@ -122,7 +122,7 @@ export function quick(q: string, opts: QuickOptions = {}): QuickResult {
     return { title: 'Web search', rows: [
       { key: 'wg', title: `Search Google for “${t}”`, sub: 'google.com', icon: 'i-lucide-globe', tile: '#2563EB', action: { type: 'close', msg: `Searching Google for “${t}”` } },
       { key: 'wgh', title: `Search GitHub for “${t}”`, sub: 'github.com', icon: 'i-lucide-github', tile: '#1E293B', action: { type: 'close', msg: `Searching GitHub for “${t}”` } },
-      { key: 'wl', title: `Search Laravel docs for “${t}”`, sub: 'laravel.com/docs', icon: 'i-lucide-book-open', tile: '#E11D48', action: { type: 'close', msg: `Searching Laravel docs for “${t}”` } }
+      { key: 'wl', title: `Search Laravel docs for “${t}”`, sub: 'laravel.com/framework/docs', icon: 'i-lucide-book-open', tile: '#E11D48', action: { type: 'close', msg: `Searching Laravel docs for “${t}”` } }
     ] }
   }
 

@@ -188,7 +188,7 @@ export const DEFAULT_SNIPS: Snippet[] = [
 /** The quicklinks Esky starts with; yours are edited in Settings → Quicklinks (see useQuicklinks). */
 export const DEFAULT_QLINKS: Quicklink[] = [
   { id: 'q1', name: 'GitHub Search', kw: 'gh', url: 'https://github.com/search?q={query}', icon: 'i-lucide-github', tile: '#1E293B', arg: 'Query' },
-  { id: 'q2', name: 'Laravel Docs', kw: 'ld', url: 'https://laravel.com/docs/12.x/{page}', icon: 'i-lucide-book-open', tile: '#E11D48', arg: 'Page' },
+  { id: 'q2', name: 'Laravel Docs', kw: 'ld', url: 'https://laravel.com/framework/docs/master/{page}', icon: 'i-lucide-book-open', tile: '#E11D48', arg: 'Page' },
   { id: 'q3', name: 'Forge Site', kw: 'site', url: 'https://forge.laravel.com/sites?search={site}', icon: 'i-lucide-hammer', tile: '#EA580C', arg: 'Site' }
 ]
 
