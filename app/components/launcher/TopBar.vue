@@ -43,7 +43,7 @@ const chip = computed(() => {
     snippets: { icon: 'i-lucide-text-quote', text: L.settings.value.textExpansion ? 'Expansion on' : 'Expansion off' },
     quicklinks: { icon: 'i-lucide-link', text: `${L.qls.list.value.length} quicklinks` },
     windows: { icon: 'i-lucide-app-window', text: s.target?.app ?? 'No window' },
-    files: { icon: 'i-lucide-hard-drive', text: 'This PC' },
+    files: { icon: 'i-lucide-hard-drive', text: L.files.status.value === 'indexing' ? 'Indexing…' : `${L.files.indexed.value.toLocaleString()} files` },
     store: { icon: 'i-lucide-store', text: `${L.installed.value.length} installed` },
     notes: { icon: 'i-lucide-sticky-note', text: `${L.notes.value.length} notes` },
     emoji: { icon: 'i-lucide-smile', text: 'Emoji & Symbols' },

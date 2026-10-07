@@ -35,6 +35,7 @@ Last updated: 6 Oct 2026 (Git, Password Generator, Script Commands dropped).
 - [x] Clipboard History: text, links, colours, images (saved as PNG in the app data folder) and files; paste back into the app you came from; pin, delete, clear; Settings → Clipboard (on/off, length, age, password managers via Windows' "don't record" clipboard flag, ignored apps). Rust `clipboard.rs` polls the clipboard change counter
 - [x] Snippets you edit (Settings → Snippets) with {date}, {time}, {clipboard} and {cursor}; paste into the app you came from; typed-keyword expansion in any app (Rust `expand.rs`: a low-level keyboard hook keeps only the last 32 characters in memory, ignores Esky's own windows and injected keys)
 - [x] Window Layouts on the window Esky was opened from: halves, thirds, centre, maximise, restore (to where it was before Esky moved it), next display; fitted to the work area and Windows 11's invisible borders. Rust `window.rs`. No default hotkeys (assign them in Settings → Shortcuts)
+- [x] File Search: an in-memory index of file names in the folders from Settings → Extensions → File Search (skips node_modules, vendor, .git and build folders; reindexed every 15 minutes), Windows' Recent files, text and thumbnail previews, Open, Open With, Reveal, Copy Path, attach to AI Chat; top matches in root search. Rust `files.rs`
 - [x] Git → Uncommitted Changes: repos with uncommitted changes or unpushed commits in the folders set in Settings → Extensions → Git (default `~\Herd`, `~\Frontend`); changed files, branch, open in editor or Windows Terminal. Rust `git_status` / `open_terminal` in the app, `server/api/git/status.get.ts` in the browser
 - [x] Password Generator: password or passphrase with Bitwarden's options, defaults and rules (EFF long word list); options are saved, generated values never are
 
@@ -48,7 +49,6 @@ Last updated: 6 Oct 2026 (Git, Password Generator, Script Commands dropped).
 
 | Area | What is fake |
 |---|---|
-| Search Files | 8 sample files; Open / Open With do nothing; Reveal and Copy Path use fake paths |
 | GitHub, Jira, Sentry extensions | Commands only open a web page; the saved tokens are never used |
 | Laravel Forge | 6 sample servers; Deploy is a timed fake; SSH does nothing; the API token is never used |
 | Colour Picker, Media Controls, Docker | Commands are fakes (preference forms work) |
@@ -59,7 +59,7 @@ Last updated: 6 Oct 2026 (Git, Password Generator, Script Commands dropped).
 1. [x] Install Rust and the Visual Studio C++ Build Tools, build the desktop app: `npm run tauri:dev`.
 2. [x] Real app search and launching: Start menu shortcuts, Microsoft Store apps.
 3. [x] Real Clipboard History: watch the clipboard, honour the ignore list and history settings, paste back. Values copied from the Password Generator aren't recorded.
-4. [ ] Real file search (Windows Search index or chosen folders).
+4. [x] Real file search (chosen folders, plus Windows' Recent files).
 5. [ ] Paste into the previous app (needed by Snippets, Emoji, Clipboard, Quick AI) and read the selected text for Quick AI.
 6. [ ] Laravel Forge API with the saved token (servers, sites, deploy).
 7. [x] Window layouts and system commands (Win32 calls from Rust).

@@ -235,6 +235,22 @@ export const EXTENSIONS: ExtensionDef[] = [
     ]
   },
   {
+    id: 'files',
+    name: 'File Search',
+    author: 'Built-in',
+    icon: 'i-lucide-file-search',
+    tile: '#CA8A04',
+    ver: '',
+    desc: 'Find files by name in the folders you choose, and see the files you opened recently.',
+    builtIn: true,
+    commands: [{ id: 'fileCmd', title: 'Search Files' }],
+    prefs: [
+      { key: 'folders', type: 'folders', label: 'Folders to search', description: 'One per line, searched with everything inside them. node_modules, vendor, .git and build folders are skipped.', default: '~\\Desktop\n~\\Documents\n~\\Downloads', placeholder: '~\\Projects' },
+      { key: 'inSearch', type: 'switch', label: 'Show files in root search', description: 'The best few matches appear under Files when you type three or more letters.', default: true },
+      alias('Search Files')
+    ]
+  },
+  {
     id: 'password',
     name: 'Password Generator',
     author: 'Built-in',

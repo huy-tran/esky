@@ -519,6 +519,65 @@ async fn window_layout(app: AppHandle, layout: String, rect: Option<[f64; 4]>) -
     blocking(move || window::apply(target, &layout, rect)).await?
 }
 
+// File Search (see files.rs).
+
+#[cfg(windows)]
+mod files;
+
+/// Index the folders from the File Search preferences. Returns how many files were found.
+#[cfg(windows)]
+#[tauri::command]
+async fn files_index(app: AppHandle, folders: Vec<String>) -> Result<usize, String> {
+    let home = app.path().home_dir().map_err(|e| e.to_string())?;
+    let roots: Vec<_> = folders.iter().map(|f| expand_home(f, &home)).collect();
+    blocking(move || files::rebuild(&roots)).await
+}
+
+#[cfg(windows)]
+#[tauri::command]
+async fn files_search(query: String) -> Result<Vec<files::FileHit>, String> {
+    blocking(move || files::search(&query, 60)).await
+}
+
+#[cfg(windows)]
+#[tauri::command]
+async fn files_recent() -> Result<Vec<files::FileHit>, String> {
+    blocking(|| files::recent(30)).await
+}
+
+#[derive(serde::Serialize)]
+struct FilePreview {
+    text: Option<String>,
+    image: Option<String>,
+}
+
+/// The start of a text file, or a thumbnail (photos, PDFs) or icon for anything else.
+#[cfg(windows)]
+#[tauri::command]
+async fn file_preview(path: String) -> Result<FilePreview, String> {
+    blocking(move || {
+        if !files::is_known(&path) {
+            return Err("Not a file Esky listed".to_string());
+        }
+        let text = files::preview_text(&path);
+        let image = if text.is_none() { apps::shell_image_once(&path, 256, false).ok() } else { None };
+        Ok(FilePreview { text, image })
+    })
+    .await?
+}
+
+#[cfg(windows)]
+#[tauri::command]
+async fn file_open_with(path: String) -> Result<(), String> {
+    blocking(move || {
+        if !files::is_known(&path) {
+            return Err("Not a file Esky listed".to_string());
+        }
+        files::open_with(&path)
+    })
+    .await?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -563,7 +622,12 @@ pub fn run() {
             copy_private,
             snippet_keywords,
             snippet_expand,
-            window_layout
+            window_layout,
+            files_index,
+            files_search,
+            files_recent,
+            file_preview,
+            file_open_with
         ])
         .setup(|app| {
             let window = app

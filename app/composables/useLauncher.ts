@@ -2,7 +2,7 @@
 import {
   AI_CMDS, BRANCHES, EMOJI, FAVS, GROUPS,
   ITEMS, KIND_LABEL, NOTES_INIT, ONB_HK, RECENT, SERVERS,
-  SPLIT, SPLIT_FOOT, SPLIT_KEYS, SUGGEST, SYS_CONFIRM, USAGE_INIT, WIN_CMDS, FILES,
+  SPLIT, SPLIT_FOOT, SPLIT_KEYS, SUGGEST, SYS_CONFIRM, USAGE_INIT, WIN_CMDS,
   type ChatMsg, type Emoji, type FileEntry, type Note, type Quicklink,
   type Selection, type Server, type Snippet, type SplitView, type WinCmd
 } from '~/data/fixtures'
@@ -24,6 +24,7 @@ import { useHotkeys } from './useHotkeys'
 import { useRates } from './useRates'
 import { useQuicklinks } from './useQuicklinks'
 import { useSnippets } from './useSnippets'
+import { fileKind, useFiles } from './useFiles'
 import { clipDay, clipPreview, copyPrivate, useClipboard, type ClipEntry } from './useClipboard'
 import { comboOf, formatBytes, phSegs, trunc, type BodySeg } from '~/utils/text'
 import { captureTarget, clearTarget, copyText, ejectDrive, floatNote, hideWindow, isTauri, openSettings, openUrl, pasteToTarget, readClipboardText, recycleBinInfo, removableDrives, revealPath, showWindow, systemAction, windowLayout, type SystemAction } from './usePlatform'
@@ -78,6 +79,8 @@ export interface Detail {
   head?: { icon?: string, tile?: string, title?: string, sub?: string, badge?: string, btn?: { label: string, primary: boolean, danger: boolean, busy: boolean, run: () => void } }
   screens?: { name: string, win: null | { l: string, t: string, w: string, h: string } }[]
   preview?: { ratio: string, label: string } | null
+  /** A picture to show (a file's thumbnail). */
+  image?: string
   input?: { label: string, val: string, ph: string, hint: string, on: (v: string) => void } | null
   body?: { segs: BodySeg[], mono?: boolean } | null
   desc?: string
@@ -279,6 +282,12 @@ function createLauncher() {
   const rates = useRates()
   const qls = useQuicklinks()
   const sn = useSnippets()
+  const files = useFiles()
+  /** File Search results for the Files view, and the few shown in root search. */
+  const fileHits = shallowRef<FileEntry[]>([])
+  const rootFiles = shallowRef<FileEntry[]>([])
+  const kindOf = (x: FileEntry) => { const k = fileKind(x.name); return { icon: k.icon, tile: k.tile } }
+  const shortDate = (ms: number) => new Date(ms).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
 
   const mk = (id: string, hl?: string): Row => {
     const it = ITEMS[id]!
@@ -495,6 +504,9 @@ function createLauncher() {
           const at = sections.findLastIndex(x => x.title === 'Applications' || x.title === 'Commands' || x.title === 'Alias') + 1
           sections.splice(at, 0, { title: 'Herd Sites', rows: sites })
         }
+        // A few file matches at the end (File Search preferences).
+        const fileRows = rootFiles.value.slice(0, 5).map((x): Row => ({ key: `file:${x.id}`, title: x.name, sub: x.dir, ...kindOf(x), kind: 'file', label: 'File', hl: ql, path: x.id, run: () => closeWith(`Opened ${x.name}`, () => openUrl(x.id)) }))
+        if (fileRows.length) sections.push({ title: 'Files', rows: fileRows })
       }
       const web: Row[] = [
         { key: 'g', title: `Search Google for “${q}”`, sub: 'Web', icon: 'i-lucide-globe', tile: '#2563EB', run: () => closeWith(`Searching Google for “${q}”`, () => openUrl(`https://www.google.com/search?q=${encodeURIComponent(q)}`)) },
@@ -544,7 +556,7 @@ function createLauncher() {
     if (v === 'snippets') groups = grp(sn.list.value.filter(x => has(x.name, x.kw, x.text)).map(x => ({ key: x.id, title: x.name, sub: x.text.split('\n')[0]!, icon: 'i-lucide-text-quote', acc: x.kw, accMono: true, data: x, g: x.folder })), sn.folders.value)
     if (v === 'quicklinks') groups = grp(qls.list.value.filter(x => has(x.name, x.kw, x.url)).map(x => ({ key: x.id, title: x.name, sub: x.url, mono: true, icon: x.icon, tile: x.tile, acc: x.kw, accMono: true, data: x, g: 'Quicklinks' })))
     if (v === 'windows') groups = grp(WIN_CMDS.filter(x => has(x.title)).map(x => ({ key: x.id, title: x.title, sub: x.g, icon: x.icon, keys: rowKeys(x.id), data: x, g: x.g })))
-    if (v === 'files') groups = grp(FILES.filter(x => has(x.name, x.dir)).map(x => ({ key: x.id, title: x.name, sub: x.dir, icon: x.icon, tile: x.tile, acc: x.mod.split(',')[0], data: x, g: q ? 'Files' : 'Recent files' })))
+    if (v === 'files') groups = grp((q ? fileHits.value : files.recent.value).map(x => ({ key: x.id, title: x.name, sub: x.dir, ...kindOf(x), acc: shortDate(x.modified), data: x, g: q ? 'Files' : 'Recent files' })))
     if (v === 'store') {
       groups = grp(EXTENSIONS.filter(x => !x.builtIn && has(x.name, x.desc)).map((x) => {
         const inst = installed.value.includes(x.id)
@@ -593,7 +605,9 @@ function createLauncher() {
     }
     if (v === 'files') {
       const n = x as FileEntry
-      return { head: { icon: n.icon, tile: n.tile, title: n.name, sub: n.dir }, preview: n.preview ? null : { ratio: n.img ? '16/10' : '4/3', label: n.label! }, body: n.preview ? { segs: [{ t: n.preview }], mono: true } : null, meta: [['Where', n.dir, 1], ['Size', n.size], ['Modified', n.mod], ['Kind', n.kindLabel]] }
+      const k = fileKind(n.name)
+      const p = files.preview(n.id)
+      return { head: { icon: k.icon, tile: k.tile, title: n.name, sub: n.dir }, image: p?.image ?? undefined, preview: p ? null : { ratio: '4/3', label: 'Loading preview…' }, body: p?.text ? { segs: [{ t: p.text }], mono: true } : null, meta: [['Where', n.dir, 1], ['Size', formatBytes(n.size)], ['Modified', new Date(n.modified).toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })], ['Kind', k.label]] }
     }
     if (v === 'store') {
       const n = x as ExtensionDef
@@ -896,7 +910,7 @@ function createLauncher() {
         return closeWith(`Opened ${url}`, () => openUrl(url))
       }
       case 'windows': return applyWin(x as WinCmd)
-      case 'files': return closeWith(`Opened ${(x as FileEntry).name}`)
+      case 'files': return closeWith(`Opened ${(x as FileEntry).name}`, () => openUrl(x.id))
       case 'store':
         if (installed.value.includes(x.id)) return openSettings({ tab: 'extensions', ext: x.id })
         return install(x as ExtensionDef)
@@ -1272,6 +1286,16 @@ function createLauncher() {
   }
 
   /** Attach whatever text is on the clipboard to the next message. */
+  /** Start an AI chat with a text file attached (its first 4 KB). */
+  async function attachFile(x: FileEntry) {
+    const { invoke } = await import('@tauri-apps/api/core')
+    const p = await invoke<{ text: string | null }>('file_preview', { path: x.id }).catch(() => ({ text: null }))
+    if (!p.text) return toast('info', 'Only text files can be attached', x.name)
+    openChat('')
+    s.attach = x.name
+    s.attachText = `${x.name}:\n${p.text}`
+  }
+
   async function attachClip() {
     const text = await readClipboardText()
     if (!text.trim()) {
@@ -1401,26 +1425,26 @@ function createLauncher() {
       }
       case 'fwith': {
         const x = curSplit() as FileEntry | undefined
-        if (x) closeWith(`Opened ${x.name} in Visual Studio Code`)
+        if (x) closeWith(`Choose an app for ${x.name}`, () => files.openWith(x.id).catch(e => toast('error', 'Couldn’t show Open with', String(e))))
         break
       }
       case 'fpath': {
         const x = curSplit() as FileEntry | undefined
         if (x) {
-          copyText(`${x.dir}\\${x.name}`)
-          toast('success', 'Path copied', `${x.dir}\\${x.name}`)
+          copyText(x.id)
+          toast('success', 'Path copied', x.id)
         }
         break
       }
       case 'freveal': {
         const x = curSplit() as FileEntry | undefined
-        if (x) closeWith(`Revealed ${x.name} in File Explorer`, () => revealPath(`${x.dir}\\${x.name}`))
+        if (x) closeWith(`Revealed ${x.name} in File Explorer`, () => revealPath(x.id))
         break
       }
       case 'fattach': {
         const x = curSplit() as FileEntry | undefined
         if (!x) break
-        Object.assign(s, { view: 'chat', messages: [], chatTitle: 'New chat', attach: x.name, stream: null, chatInput: '' })
+        attachFile(x)
         break
       }
       case 'xuninstall': {
@@ -2090,6 +2114,28 @@ function createLauncher() {
 
   watch(floatId, id => floatNote(id))
 
+  // File Search: search as you type (the index answers in well under a millisecond).
+  let fileSeq = 0
+  watch(() => [s.view, s.splitQuery] as const, async ([view, q]) => {
+    if (view !== 'files') return
+    const mine = ++fileSeq
+    const hits = await files.search(q)
+    if (mine === fileSeq) {
+      fileHits.value = hits
+      s.splitSel = 0
+    }
+  })
+  watch(() => s.view, (v) => {
+    if (v === 'files') files.loadRecent()
+  })
+  let rootSeq = 0
+  watch(() => s.query, async (q) => {
+    const mine = ++rootSeq
+    const on = exts.isActive('files') && exts.prefsFor('files').inSearch !== false && q.trim().length >= 3
+    const hits = on ? await files.search(q) : []
+    if (mine === rootSeq) rootFiles.value = hits
+  })
+
   ready.then(() => {
     if (!onboarded.value) Object.assign(s, { open: true, onb: onbStart() })
     if (floatId.value) floatNote(floatId.value)
@@ -2097,6 +2143,7 @@ function createLauncher() {
     rates.refresh()
     clipboard.start()
     startExpansion()
+    files.start()
     // Herd sites also appear in root search.
     if (exts.isActive('herd')) loadHerd()
     // A different Herd config folder (set in Settings) means a different site list.
@@ -2108,7 +2155,7 @@ function createLauncher() {
   return {
     s, els, ready, favs, disabled, usage, recent, aliases, hotkeys, installed, notes, clip, floatId, settings,
     searchModel, clipModel, forgeModel, splitModel, emojiModel, actionsModel, footer,
-    apps, qls, sn, herd, herdModel, openSite, git, gitModel, pw, copyPassword, dict, dictFlat, openDictionary,
+    apps, qls, sn, files, herd, herdModel, openSite, git, gitModel, pw, copyPassword, dict, dictFlat, openDictionary,
     chats, chatGroups, openSavedChat, claude,
     curClip, curSplit, curEmoji, detail, aiCmd, rowKeys, comboOwner, aliasOwner,
     toast, focus, go, openWin, openFromHotkey, openFromTray, activateFromHotkey, back, closeWith, activate, runAction, runSplit, openActions,

@@ -98,6 +98,8 @@ useKeepVisible(box, () => [s.splitSel, s.splitQuery, s.view])
             </div>
           </div>
 
+          <img v-if="det.image" :src="det.image" alt="" class="max-w-full max-h-[220px] self-start rounded-[6px] border border-(--bd) object-contain">
+
           <div
             v-if="det.preview"
             class="max-h-[220px] rounded-[6px] border border-(--bd) bg-[repeating-linear-gradient(135deg,var(--surface)_0_8px,transparent_8px_16px)] grid place-items-center"

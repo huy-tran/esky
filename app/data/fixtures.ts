@@ -213,30 +213,16 @@ export const DEFAULT_QLINKS: Quicklink[] = [
   { id: 'q3', name: 'Forge Site', kw: 'site', url: 'https://forge.laravel.com/sites?search={site}', icon: 'i-lucide-hammer', tile: '#EA580C', arg: 'Site' }
 ]
 
+/** A file from File Search (see useFiles). */
 export interface FileEntry {
+  /** The full path, which also identifies it. */
   id: string
   name: string
   dir: string
-  icon: string
-  tile: string
-  size: string
-  mod: string
-  kindLabel: string
-  preview?: string
-  label?: string
-  img?: boolean
+  size: number
+  /** Last modified (ms). */
+  modified: number
 }
-
-export const FILES: FileEntry[] = [
-  { id: 'f1', name: 'laravel-upgrade-notes.md', dir: 'C:\\Users\\alex\\Documents\\Notes', icon: 'i-lucide-file-text', tile: '#52525B', size: '6 KB', mod: 'Today, 09:40', kindLabel: 'Markdown', preview: '# Laravel 12 upgrade\n\n- Bump PHP to 8.3 minimum\n- Replace deprecated helpers in app/Support\n- Run php artisan optimize:clear after deploy' },
-  { id: 'f2', name: 'Supplier-invoice-2026.pdf', dir: 'C:\\Users\\alex\\Downloads', icon: 'i-lucide-file', tile: '#B91C1C', size: '212 KB', mod: 'Yesterday, 17:05', kindLabel: 'PDF document', label: 'PDF · 2 pages' },
-  { id: 'f3', name: 'invoices-2026-Q3.xlsx', dir: 'C:\\Users\\alex\\Documents\\Finance', icon: 'i-lucide-file-spreadsheet', tile: '#15803D', size: '48 KB', mod: 'Today, 09:15', kindLabel: 'Excel workbook', label: 'Spreadsheet · 3 sheets' },
-  { id: 'f5', name: 'docker-compose.yml', dir: 'C:\\Users\\alex\\Herd\\northwind-api', icon: 'i-lucide-file-code', tile: '#0284C7', size: '2 KB', mod: 'Thu 2 Oct', kindLabel: 'YAML', preview: 'services:\n  app:\n    build: .\n    ports:\n      - \'8000:8000\'\n  mysql:\n    image: mysql:8.4' },
-  { id: 'f4', name: 'northwind-logo.svg', dir: 'C:\\Users\\alex\\Documents\\Clients\\Northwind', icon: 'i-lucide-image', tile: '#DB2777', size: '9 KB', mod: 'Fri 3 Oct', kindLabel: 'SVG image', label: 'SVG · 512 × 512', img: true },
-  { id: 'f6', name: 'Acme-proposal-template.docx', dir: 'C:\\Users\\alex\\Documents\\Templates', icon: 'i-lucide-file-type', tile: '#1D4ED8', size: '84 KB', mod: 'Mon 29 Sep', kindLabel: 'Word document', label: 'Document · 4 pages' },
-  { id: 'f7', name: '.env.example', dir: 'C:\\Users\\alex\\Herd\\acme-web', icon: 'i-lucide-file-code', tile: '#3F3F46', size: '1 KB', mod: 'Sun 28 Sep', kindLabel: 'ENV file', preview: 'APP_NAME=Acme\nAPP_ENV=local\nDB_CONNECTION=mysql\nQUEUE_CONNECTION=redis' },
-  { id: 'f8', name: 'Screenshot 2026-10-05 104012.png', dir: 'C:\\Users\\alex\\Pictures\\Screenshots', icon: 'i-lucide-image', tile: '#DB2777', size: '184 KB', mod: 'Today, 10:40', kindLabel: 'PNG image', label: 'PNG · 1280 × 720', img: true }
-]
 
 export interface Emoji { e: string, n: string }
 

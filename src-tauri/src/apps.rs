@@ -14,7 +14,7 @@ use windows::Win32::System::Com::{CoInitializeEx, CoTaskMemFree, CoUninitialize,
 use windows::Win32::UI::Shell::{
     BHID_EnumItems, IEnumShellItems, IShellItem, IShellItem2, IShellItemImageFactory,
     SHCreateItemFromParsingName, ShellExecuteW, SIGDN_NORMALDISPLAY, SIGDN_PARENTRELATIVEPARSING,
-    SIIGBF_ICONONLY,
+    SIIGBF, SIIGBF_ICONONLY,
 };
 use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
@@ -123,13 +123,26 @@ pub fn launch_admin(path: &str) -> Result<(), String> {
 
 /// The app's icon as a PNG data URL, `size` pixels square.
 fn icon(id: &str, size: i32) -> Result<String, String> {
+    shell_image(&format!("shell:AppsFolder\\{id}"), size, true)
+}
+
+/// The picture Windows shows for anything the Shell can parse (an app, a file), as a PNG data URL.
+/// `icon_only` gives the icon; otherwise a thumbnail of the content when there is one (photos, PDFs).
+pub fn shell_image(parsing_name: &str, size: i32, icon_only: bool) -> Result<String, String> {
     unsafe {
-        let factory: IShellItemImageFactory = SHCreateItemFromParsingName(&HSTRING::from(format!("shell:AppsFolder\\{id}")), None).map_err(err)?;
-        let hbm = factory.GetImage(SIZE { cx: size, cy: size }, SIIGBF_ICONONLY).map_err(err)?;
+        let factory: IShellItemImageFactory = SHCreateItemFromParsingName(&HSTRING::from(parsing_name), None).map_err(err)?;
+        let flags = if icon_only { SIIGBF_ICONONLY } else { SIIGBF(0) };
+        let hbm = factory.GetImage(SIZE { cx: size, cy: size }, flags).map_err(err)?;
         let png = bitmap_png(hbm);
         let _ = DeleteObject(HGDIOBJ(hbm.0));
         Ok(format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(png?)))
     }
+}
+
+/// `shell_image` with COM set up for this call.
+pub fn shell_image_once(parsing_name: &str, size: i32, icon_only: bool) -> Result<String, String> {
+    let _com = Com::init();
+    shell_image(parsing_name, size, icon_only)
 }
 
 /// Icons for many apps at once, on a few threads (each needs its own COM). Apps without an icon are left out.
