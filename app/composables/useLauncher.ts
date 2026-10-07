@@ -827,9 +827,9 @@ function createLauncher() {
     openWin()
   }
 
-  /** A command's own hotkey, pressed while Esky is hidden. Quick AI commands work on the selection. */
+  /** A command's own hotkey, pressed while Esky is hidden. Quick AI and Google Translate work on the selection. */
   async function activateFromHotkey(id: string) {
-    await captureFrom(!!ITEMS[id]?.ai && settings.value.readSelection)
+    await captureFrom(!!(ITEMS[id]?.ai || ITEMS[id]?.go === 'translate') && settings.value.readSelection)
     activate(id)
   }
 
