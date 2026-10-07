@@ -275,11 +275,14 @@ const selectUi = { trailingIcon: 'size-3.5 text-(--muted)', content: 'bg-(--pop-
           <div class="text-[20px] font-semibold tracking-[-.01em] mb-[18px]">{{ tabTitle }}</div>
 
           <!-- General -->
-          <div v-if="tab === 'general'" :class="card">
-            <div v-for="([k, title, desc], j) in generalSwitches" :key="k" :class="[row, j < generalSwitches.length - 1 ? 'border-b border-(--bd)' : '']">
-              <SettingsRow :title="title" :desc="desc" />
-              <USwitch v-model="(S[k] as boolean)" :aria-label="title" :ui="switchLg" />
+          <div v-if="tab === 'general'" class="flex flex-col gap-5">
+            <div :class="card">
+              <div v-for="([k, title, desc], j) in generalSwitches" :key="k" :class="[row, j < generalSwitches.length - 1 ? 'border-b border-(--bd)' : '']">
+                <SettingsRow :title="title" :desc="desc" />
+                <USwitch v-model="(S[k] as boolean)" :aria-label="title" :ui="switchLg" />
+              </div>
             </div>
+            <SettingsBackupPanel />
           </div>
 
           <!-- Shortcuts -->

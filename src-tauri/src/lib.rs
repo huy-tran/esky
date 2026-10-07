@@ -527,6 +527,25 @@ async fn snippet_erase(keyword_chars: usize) -> Result<(), String> {
     blocking(move || expand::erase(keyword_chars)).await
 }
 
+/// Write a settings backup to Downloads as "Esky settings <date>.json" and return its path.
+#[tauri::command]
+fn save_backup(app: AppHandle, json: String) -> Result<String, String> {
+    let parsed: serde_json::Value = serde_json::from_str(&json).map_err(|e| e.to_string())?;
+    if parsed["app"] != "esky" {
+        return Err("Not an Esky backup".into());
+    }
+    let dir = app.path().download_dir().map_err(|e| e.to_string())?;
+    let date = parsed["exported"].as_str().unwrap_or("").get(..10).unwrap_or("backup").replace(|c: char| !c.is_ascii_alphanumeric() && c != '-', "");
+    let mut path = dir.join(format!("Esky settings {date}.json"));
+    let mut n = 2;
+    while path.exists() {
+        path = dir.join(format!("Esky settings {date} ({n}).json"));
+        n += 1;
+    }
+    std::fs::write(&path, json).map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
 // Switch Windows (see switcher.rs).
 
 #[cfg(windows)]
@@ -797,6 +816,7 @@ pub fn run() {
             snippet_erase,
             window_layout,
             windows_list,
+            save_backup,
             exe_icons,
             window_focus,
             window_close,
