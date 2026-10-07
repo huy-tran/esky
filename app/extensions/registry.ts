@@ -51,7 +51,29 @@ const alias = (example: string): PrefField => ({ key: 'alias', type: 'text', lab
 /** Code editors Esky can open a folder in (see EDITORS in useLauncher). */
 const EDITOR_OPTIONS = [{ value: 'vscode', label: 'Visual Studio Code' }, { value: 'cursor', label: 'Cursor' }, { value: 'zed', label: 'Zed' }, { value: 'phpstorm', label: 'PhpStorm' }]
 
+/** Google Calendar address for a view, signed in as `account` when one is set. */
+const gcal = (p: Prefs, path: string) => `https://calendar.google.com/calendar/u/0/r/${path}${p.account ? `?authuser=${encodeURIComponent(String(p.account))}` : ''}`
+
 export const EXTENSIONS: ExtensionDef[] = [
+  {
+    id: 'gcal',
+    name: 'Google Calendar',
+    author: 'Esky',
+    icon: 'i-lucide-calendar-days',
+    tile: '#1A73E8',
+    ver: '',
+    desc: 'Jump to your Google Calendar, or start a new event.',
+    builtIn: true,
+    commands: [
+      { id: 'open', title: 'Google Calendar', url: p => gcal(p, String(p.view || 'week')) },
+      { id: 'today', title: 'Today in Google Calendar', url: p => gcal(p, 'day') },
+      { id: 'new', title: 'New Calendar Event', url: p => gcal(p, 'eventedit') }
+    ],
+    prefs: [
+      { key: 'account', type: 'text', label: 'Google account', description: 'The email to open it as, if you are signed in to more than one Google account.', placeholder: 'you@example.com' },
+      { key: 'view', type: 'select', label: 'Opens in', default: 'week', options: [{ value: 'day', label: 'Day' }, { value: 'week', label: 'Week' }, { value: 'month', label: 'Month' }, { value: 'agenda', label: 'Schedule' }] }
+    ]
+  },
   {
     id: 'forge',
     name: 'Laravel Forge',
