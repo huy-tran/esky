@@ -527,6 +527,34 @@ async fn snippet_erase(keyword_chars: usize) -> Result<(), String> {
     blocking(move || expand::erase(keyword_chars)).await
 }
 
+/// The launcher window's backdrop (Settings → Appearance → Background): "mica" (tinted by the
+/// wallpaper), "acrylic" (blurs what's behind), "clear" or "solid" (the page draws the panel on top).
+#[tauri::command]
+fn window_effect(app: AppHandle, effect: String, dark: bool) -> Result<(), String> {
+    let window = app.get_webview_window("main").ok_or("No launcher window")?;
+    #[cfg(target_os = "windows")]
+    {
+        use window_vibrancy::{apply_acrylic, apply_mica, clear_acrylic, clear_mica};
+        let _ = clear_mica(&window);
+        let _ = clear_acrylic(&window);
+        let tint = if dark { (15, 23, 42, 40) } else { (250, 250, 247, 40) };
+        match effect.as_str() {
+            // Mica needs Windows 11; Windows 10 gets Acrylic instead.
+            "mica" => {
+                if apply_mica(&window, Some(dark)).is_err() {
+                    apply_acrylic(&window, Some(tint)).map_err(|e| e.to_string())?;
+                }
+            }
+            "acrylic" => apply_acrylic(&window, Some(tint)).map_err(|e| e.to_string())?,
+            "clear" | "solid" => {}
+            _ => return Err("Unknown background".into()),
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    let _ = (window, effect, dark);
+    Ok(())
+}
+
 // Updates (see updates.rs).
 
 mod updates;
@@ -836,6 +864,7 @@ pub fn run() {
             windows_list,
             save_backup,
             update_check,
+            window_effect,
             update_install,
             exe_icons,
             window_focus,

@@ -27,6 +27,10 @@ export interface SettingsState {
   /** What root search offers when nothing matches (see utils/fallbacks.ts), in order. */
   fallbacks: string[]
   accent: AccentId
+  /** The launcher's backdrop: Windows' Mica or Acrylic, see-through, or solid. */
+  background: 'mica' | 'acrylic' | 'clear' | 'solid'
+  /** How opaque the launcher panel is, 20–100 (%). Ignored when the background is solid. */
+  opacity: number
 }
 
 const defaults = (): SettingsState => ({
@@ -50,7 +54,9 @@ const defaults = (): SettingsState => ({
   backend: 'cc',
   model: 'claude-opus-5-5',
   fallbacks: [...DEFAULT_FALLBACKS],
-  accent: 'green'
+  accent: 'green',
+  background: 'mica',
+  opacity: 80
 })
 
 let instance: { settings: Ref<SettingsState>, ready: Promise<void> } | null = null

@@ -180,6 +180,20 @@ function onAccentKey(e: KeyboardEvent) {
   nextTick(() => group.querySelector<HTMLElement>('[aria-checked=true]')?.focus())
 }
 
+// Appearance: the launcher's backdrop.
+const backgroundItems = [
+  { value: 'mica', label: 'Mica' },
+  { value: 'acrylic', label: 'Acrylic' },
+  { value: 'clear', label: 'Clear' },
+  { value: 'solid', label: 'Solid' }
+]
+const backgroundDesc = computed(() => ({
+  mica: 'Tinted by your wallpaper, like Windows 11 apps. Windows 10 gets Acrylic.',
+  acrylic: 'Blurs the windows behind the launcher. Lower the opacity to see more of them.',
+  clear: 'See straight through to the windows behind, without blur.',
+  solid: 'No transparency.'
+})[S.value.background])
+
 // About
 const sys = useSystemInfo()
 const updateRepo = useRuntimeConfig().public.updateRepo as string
@@ -517,6 +531,17 @@ const selectUi = { trailingIcon: 'size-3.5 text-(--muted)', content: 'bg-(--pop-
                   @click="S.accent = id"
                 />
                 <span class="w-12 text-[12.5px] text-(--muted)">{{ accentLabel(S.accent) }}</span>
+              </div>
+            </div>
+            <div :class="[row, 'border-t border-(--bd)']">
+              <SettingsRow title="Background" :desc="backgroundDesc" />
+              <USelect v-model="S.background" :items="backgroundItems" variant="none" :class="`${field} w-[150px] px-2`" :ui="selectUi" />
+            </div>
+            <div :class="[row, 'border-t border-(--bd)']" :style="{ opacity: S.background === 'solid' ? 0.5 : 1 }">
+              <SettingsRow title="Opacity" desc="How much of the launcher panel you can see through." />
+              <div class="flex items-center gap-3 w-[220px]">
+                <USlider v-model="S.opacity" :min="20" :max="100" :step="5" :disabled="S.background === 'solid'" aria-label="Opacity" class="flex-1" />
+                <span class="w-10 text-right text-[12.5px] tabular-nums text-(--muted)">{{ S.background === 'solid' ? 100 : S.opacity }}%</span>
               </div>
             </div>
           </div>
