@@ -76,7 +76,6 @@ const backends = [
   { value: 'cc', label: 'Claude Code (your subscription)', description: 'Uses the Claude Code CLI signed in on this PC. No API billing.' },
   { value: 'api', label: 'Anthropic API key', description: 'Pay per token with a key from console.anthropic.com.' }
 ]
-const permOpts = [{ value: 'ask', label: 'Ask before every tool' }, { value: 'edits', label: 'Allow edits, ask for commands' }, { value: 'plan', label: 'Plan only (read-only)' }]
 // Claude Code connection and plan usage (AI tab).
 const claude = useClaude()
 const status = ref<ClaudeStatus | null>(null)
@@ -136,14 +135,6 @@ const usageRows = computed(() => {
       return { label, pct, resets: resets(w!.resetsAt), color: pct >= 90 ? 'var(--err)' : pct >= 70 ? 'var(--warn)' : 'var(--accent)' }
     })
 })
-const newTool = ref('')
-function addTool() {
-  const n = newTool.value.trim()
-  if (!n) return
-  S.value.tools = [...S.value.tools, n]
-  newTool.value = ''
-}
-const toolIcon = (p: string) => p.startsWith('Bash') ? 'i-lucide-square-terminal' : p.startsWith('Web') ? 'i-lucide-globe' : 'i-lucide-file-search'
 
 // Appearance
 const themeItems = [{ value: 'dark', label: 'Dark' }, { value: 'light', label: 'Light' }, { value: 'system', label: 'System' }]
@@ -420,32 +411,6 @@ const selectUi = { trailingIcon: 'size-3.5 text-(--muted)', content: 'bg-(--pop-
               <div class="flex-1">
                 <div class="font-medium">API key backend isn’t connected yet</div>
                 <div class="text-[12px] text-(--muted) mt-0.5">AI Chat and Quick AI currently run through Claude Code. Switch back to use them.</div>
-              </div>
-            </div>
-            <div class="flex items-center gap-4">
-              <SettingsRow title="Default permission mode" desc="Applies when Agent mode is on in AI Chat." />
-              <USelect v-model="S.permMode" :items="permOpts" variant="none" :class="`${field} w-[240px] px-2`" :ui="selectUi" />
-            </div>
-            <div class="flex flex-col gap-2">
-              <SettingsRow title="Allowed tools" desc="These run without an approval prompt." />
-              <div class="border border-(--bd) rounded-[8px] overflow-hidden">
-                <div v-for="p in S.tools" :key="p" class="flex items-center gap-2.5 h-[38px] pr-1.5 pl-3 border-b border-(--bd)">
-                  <UIcon :name="toolIcon(p)" class="size-3.5 text-(--muted)" />
-                  <span class="flex-1 font-mono text-[12.5px]">{{ p }}</span>
-                  <UButton
-                    icon="i-lucide-x"
-                    aria-label="Remove"
-                    color="neutral"
-                    variant="ghost"
-                    class="size-[26px] p-0 justify-center rounded-[6px] text-(--muted)"
-                    :ui="{ leadingIcon: 'size-[13px]' }"
-                    @click="S.tools = S.tools.filter(x => x !== p)"
-                  />
-                </div>
-                <div class="flex gap-2 p-2">
-                  <UInput v-model="newTool" placeholder="Bash(npm run test:*)" variant="none" class="flex-1" :ui="{ base: `${field} h-[30px] px-2.5 font-mono text-[12px]` }" @keydown.enter="addTool" />
-                  <UButton label="Add" color="neutral" variant="outline" :class="`${ghostBtn} h-[30px]`" @click="addTool" />
-                </div>
               </div>
             </div>
           </div>

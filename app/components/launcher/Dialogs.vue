@@ -34,52 +34,12 @@ const alConflict = computed(() => {
   return owner ? `“${al!.value.trim()}” is already the alias for ${ITEMS[owner]!.title}. Saving moves it here.` : ''
 })
 
-// Agent approval
-const approvalBtns = computed(() => ([['Allow once', ['↵']], ['Always allow', ['Ctrl', '↵']], ['Deny', ['Esc']]] as [string, string[]][]).map(([label, keys], i) => {
-  const primary = i === 0
-  return {
-    label,
-    keys,
-    primary,
-    style: {
-      background: primary ? 'var(--accent)' : 'var(--surface)',
-      color: primary ? 'var(--on-accent)' : i === 2 ? 'var(--err)' : 'var(--fg)',
-      borderColor: primary ? 'transparent' : 'var(--bd)',
-      boxShadow: i === s.approvalSel ? '0 0 0 2px var(--pop-bg),0 0 0 4px var(--accent)' : 'none'
-    }
-  }
-}))
-
 const btn = 'h-8 gap-[7px] rounded-[6px] text-[13px] ring-0'
 const secondary = `${btn} pl-2.5 pr-2 border border-(--bd) bg-(--surface) hover:bg-(--surface) text-(--fg) font-medium`
 const primaryBtn = `${btn} pl-3 pr-2 bg-(--accent) hover:bg-(--accent) text-(--on-accent) font-semibold`
 </script>
 
 <template>
-  <!-- Agent approval -->
-  <LauncherDialog :open="!!s.approval" width-class="w-[458px]" title="Claude wants to run">
-    <div class="flex items-center gap-2.5">
-      <div class="size-8 rounded-[6px] bg-(--warn-soft) text-(--warn) grid place-items-center"><UIcon name="i-lucide-square-terminal" class="size-4" /></div>
-      <div>
-        <div class="text-[14.5px] font-semibold">Claude wants to run:</div>
-        <div class="text-[12px] text-(--muted) mt-0.5">Agent mode · in {{ s.approval?.cwd }}</div>
-      </div>
-    </div>
-    <div class="font-mono text-[14px] px-3 py-2.5 rounded-[6px] bg-(--code-bg) border border-(--bd)">{{ s.approval?.cmd }}</div>
-    <div class="flex gap-2">
-      <UButton
-        v-for="(ab, i) in approvalBtns"
-        :key="ab.label"
-        tabindex="-1"
-        class="flex-1 h-[34px] justify-center gap-[7px] rounded-[6px] border text-[13px] font-medium ring-0"
-        :style="ab.style"
-        @click="L.approve(i)"
-      >
-        {{ ab.label }}<Keys :keys="ab.keys" :size="ab.primary ? 'accent' : 'inherit'" />
-      </UButton>
-    </div>
-  </LauncherDialog>
-
   <!-- Hotkey recorder -->
   <LauncherDialog :open="!!s.hk" title="Record hotkey">
     <div class="flex items-center gap-2.5">

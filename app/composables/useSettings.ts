@@ -12,8 +12,6 @@ export interface SettingsState {
   ignorePm: boolean
   ignored: { name: string, icon: string, tile: string }[]
   backend: 'cc' | 'api'
-  permMode: 'ask' | 'edits' | 'plan'
-  tools: string[]
   accent: AccentId
 }
 
@@ -31,8 +29,6 @@ const defaults = (): SettingsState => ({
     { name: 'KeePassXC', icon: 'i-lucide-lock', tile: '#15803D' }
   ],
   backend: 'cc',
-  permMode: 'edits',
-  tools: ['Read', 'Grep', 'Bash(php artisan test:*)', 'Bash(git status)', 'WebFetch(domain:laravel.com)'],
   accent: 'green'
 })
 

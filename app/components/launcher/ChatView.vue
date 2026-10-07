@@ -78,7 +78,6 @@ const copyCode = (file: string, code: string) => {
                       <span class="text-(--faint)">•</span><span><LauncherInlineMd :text="it" /></span>
                     </div>
                   </div>
-                  <LauncherToolCallCard v-else-if="b.type === 'tool'" :cmd="b.cmd" :status="b.status" :out="b.out" />
                 </template>
                 <template v-if="mi === s.messages.length - 1 && streamingText !== null">
                   <p class="m-0 whitespace-pre-wrap">{{ streamingText }}</p>
@@ -116,27 +115,6 @@ const copyCode = (file: string, code: string) => {
               class="h-[26px] gap-1.5 px-2 rounded-[6px] bg-(--tile) hover:bg-(--tile) text-(--fg) text-[12px] font-normal"
               :ui="{ leadingIcon: 'size-[13px]' }"
               @click="L.attachClip()"
-            />
-            <span class="w-px h-4 bg-(--bd)" />
-            <USwitch
-              v-model="s.agent"
-              tabindex="-1"
-              label="Agent mode"
-              :ui="{
-                root: 'items-center',
-                base: 'w-7 border-2 data-[state=unchecked]:bg-(--tile) data-[state=checked]:bg-(--warn) focus-visible:outline-none',
-                container: 'h-4',
-                thumb: 'size-3 bg-white shadow-none data-[state=checked]:translate-x-3',
-                wrapper: 'ms-2 text-[12px]',
-                label: 'font-normal text-(--fg) cursor-pointer'
-              }"
-            />
-            <UBadge
-              v-if="s.agent"
-              icon="i-lucide-triangle-alert"
-              label="Can run commands"
-              class="h-5 gap-[5px] px-[7px] rounded-[5px] bg-(--warn-soft) text-(--warn) text-[11px] font-semibold ring-0"
-              :ui="{ leadingIcon: 'size-[11px]' }"
             />
             <span class="flex-1" />
             <Keys :keys="['↵']" />

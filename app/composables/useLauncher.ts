@@ -1,9 +1,9 @@
 // Launcher state and behaviour.
 import {
-  AFTER_TOOL, AI_CMDS, BRANCHES, CLIP_INIT, DENIED, EMOJI, FAVS, GROUPS,
+  AI_CMDS, BRANCHES, CLIP_INIT, EMOJI, FAVS, GROUPS,
   ITEMS, KIND_LABEL, NOTES_INIT, ONB_HK, ONB_TG, QLINKS, RECENT, SERVERS,
-  SNIPS, SPLIT, SPLIT_FOOT, SPLIT_KEYS, SUGGEST, SYS_CONFIRM, TOOL_OUT, USAGE_INIT, WIN_CMDS, FILES,
-  type ChatBlock, type ChatMsg, type ClipItem, type Emoji, type FileEntry, type Note, type Quicklink,
+  SNIPS, SPLIT, SPLIT_FOOT, SPLIT_KEYS, SUGGEST, SYS_CONFIRM, USAGE_INIT, WIN_CMDS, FILES,
+  type ChatMsg, type ClipItem, type Emoji, type FileEntry, type Note, type Quicklink,
   type Selection, type Server, type Snippet, type SplitView, type WinCmd
 } from '~/data/fixtures'
 import { EXTENSIONS, commandFor, extById, type ExtensionDef } from '~/extensions/registry'
@@ -110,10 +110,6 @@ function createLauncher() {
     messages: [] as ChatMsg[],
     chatInput: '',
     showChats: true,
-    agent: false,
-    alwaysAllow: false,
-    approval: null as null | { cmd: string, cwd: string },
-    approvalSel: 0,
     claudeReady: true,
     setupStep: 0,
     checking: false,
@@ -197,7 +193,6 @@ function createLauncher() {
     al: null as HTMLInputElement | null
   })
 
-  let tm: ReturnType<typeof setInterval> | undefined
   let nt: ReturnType<typeof setTimeout> | undefined
 
   const theme = () => (colorMode.value === 'light' ? 'light' : 'dark')
@@ -620,7 +615,7 @@ function createLauncher() {
       list = [...(s.view === 'forgeList' ? [O('fopen', 'Show Details', 'i-lucide-panel-right', ['↵'])] : []), O('fdeploy', 'Deploy Site', 'i-lucide-rocket', ['Ctrl', 'D']), O('fforge', 'Open in Forge', 'i-lucide-external-link', ['Ctrl', 'O']), O('fip', 'Copy IP Address', 'i-lucide-copy', ['Ctrl', 'Shift', 'C']), O('fssh', 'SSH into Server', 'i-lucide-square-terminal', ['Ctrl', 'Shift', 'S'])]
     } else if (s.view === 'chat') {
       target = s.chatTitle
-      list = [O('newchat', 'New Chat', 'i-lucide-square-pen', ['Ctrl', 'N']), O('togglechats', s.showChats ? 'Hide Chat List' : 'Show Chat List', 'i-lucide-panel-left', ['Ctrl', 'B']), O('attach', 'Attach Clipboard', 'i-lucide-paperclip', ['Ctrl', 'Shift', 'V']), O('agent', s.agent ? 'Turn Off Agent Mode' : 'Turn On Agent Mode', 'i-lucide-triangle-alert', [])]
+      list = [O('newchat', 'New Chat', 'i-lucide-square-pen', ['Ctrl', 'N']), O('togglechats', s.showChats ? 'Hide Chat List' : 'Show Chat List', 'i-lucide-panel-left', ['Ctrl', 'B']), O('attach', 'Attach Clipboard', 'i-lucide-paperclip', ['Ctrl', 'Shift', 'V'])]
     } else if (s.view === 'herdList') {
       const x = curSite()
       target = x ? x.name : 'Herd Sites'
@@ -664,19 +659,17 @@ function createLauncher() {
   // ---------- navigation ----------
 
   function go(view: View, extra: Partial<typeof s> = {}) {
-    clearInterval(tm)
     cancelRun()
     Object.assign(s, { open: true, view, sel: 0, actionsOpen: false, stream: null }, extra)
   }
 
   function openWin() {
-    Object.assign(s, { open: true, view: 'search', query: '', sel: 0, actionsOpen: false, approval: null })
+    Object.assign(s, { open: true, view: 'search', query: '', sel: 0, actionsOpen: false })
   }
 
   /** Run the action, then hide Esky. `msg` describes what happened (shown as a notice in the browser build). */
   function closeWith(msg: string, effect?: () => unknown) {
-    clearInterval(tm)
-    Object.assign(s, { open: false, notice: msg, actionsOpen: false, approval: null, selection: null })
+    Object.assign(s, { open: false, notice: msg, actionsOpen: false, selection: null })
     clearTimeout(nt)
     nt = setTimeout(() => { s.notice = '' }, 2800)
     effect?.()
@@ -949,41 +942,10 @@ function createLauncher() {
 
   // ---------- AI ----------
 
-  function startStream(target: Stream['target'], text: string, done?: () => void) {
-    clearInterval(tm)
-    s.stream = { target, text, pos: 0 }
-    tm = setInterval(() => {
-      const st = s.stream
-      if (!st) {
-        clearInterval(tm)
-        return
-      }
-      const pos = Math.min(st.text.length, st.pos + 3)
-      if (pos >= st.text.length) {
-        clearInterval(tm)
-        s.stream = { ...st, pos, done: true }
-        done?.()
-      } else {
-        s.stream = { ...st, pos }
-      }
-    }, 28)
-  }
-
-  function streamChat(text: string) {
-    startStream('chat', text, () => {
-      const ms = s.messages.slice()
-      const i = ms.length - 1
-      ms[i] = { ...ms[i]!, blocks: [...ms[i]!.blocks, { type: 'p', text }] }
-      s.messages = ms
-      s.stream = null
-    })
-  }
-
   // Real AI goes through the user's Claude Code (useClaude). Chats are saved and continue the same
   // Claude session; Quick AI runs once per command without a session.
 
   let run: ClaudeRun | null = null
-  let agentNoticeShown = false
 
   /** Stop whatever Claude is writing (Esc, new chat, switching chats or views). */
   function cancelRun() {
@@ -1039,7 +1001,7 @@ function createLauncher() {
 
   function openChat(prompt: string) {
     cancelRun()
-    Object.assign(s, { view: 'chat' as View, chatInput: '', approval: null, stream: null, actionsOpen: false, query: '' })
+    Object.assign(s, { view: 'chat' as View, chatInput: '', stream: null, actionsOpen: false, query: '' })
     startNewChat()
     checkClaude().then(() => {
       if (!prompt) return
@@ -1051,7 +1013,6 @@ function createLauncher() {
   function newChat() {
     cancelRun()
     startNewChat()
-    Object.assign(s, { approval: null })
     focus()
   }
 
@@ -1069,10 +1030,6 @@ function createLauncher() {
   async function send(input?: string) {
     const text = (input ?? s.chatInput).trim()
     if (!text || (s.stream && !s.stream.done) || !s.claudeReady) return
-    if (s.agent && !agentNoticeShown) {
-      agentNoticeShown = true
-      toast('info', 'Agent mode isn’t connected yet', 'Claude can answer, but can’t run commands from Esky yet.')
-    }
     const chat = currentChat()
     const chatId = s.chatId
     const attachText = s.attachText
@@ -1141,35 +1098,6 @@ function createLauncher() {
     })
   }
 
-  function setTool(status: 'running' | 'done' | 'denied', out?: string[]) {
-    const ms = s.messages.slice()
-    const i = ms.length - 1
-    ms[i] = { ...ms[i]!, blocks: ms[i]!.blocks.map((b): ChatBlock => b.type === 'tool' && (b.status === 'pending' || b.status === 'running') ? { ...b, status, out } : b) }
-    s.messages = ms
-  }
-
-  function runTool() {
-    s.approval = null
-    setTool('running')
-    setTimeout(() => {
-      setTool('done', TOOL_OUT)
-      streamChat(AFTER_TOOL)
-    }, 1100)
-  }
-
-  function approve(i: number) {
-    if (i === 0) runTool()
-    else if (i === 1) {
-      s.alwaysAllow = true
-      runTool()
-      toast('info', 'Always allowed', 'php artisan migrate will run without asking.')
-    } else {
-      s.approval = null
-      setTool('denied')
-      streamChat(DENIED)
-    }
-  }
-
   async function checkAgain() {
     if (s.checking) return
     const st = await checkClaude()
@@ -1222,7 +1150,7 @@ function createLauncher() {
     const follow = s.followUp
     cancelRun()
     startNewChat()
-    Object.assign(s, { view: 'chat', stream: null, approval: null, chatTitle: c.title, chatInput: '', messages: [{ role: 'user', blocks: [{ type: 'p', text: `${c.title}:\n${selected}` }] }, { role: 'assistant', blocks: markdownBlocks(result) }] })
+    Object.assign(s, { view: 'chat', stream: null, chatTitle: c.title, chatInput: '', messages: [{ role: 'user', blocks: [{ type: 'p', text: `${c.title}:\n${selected}` }] }, { role: 'assistant', blocks: markdownBlocks(result) }] })
     saveChat({ context: `Earlier I asked you to “${c.title}” for this text:\n"""\n${selected}\n"""\nYou replied:\n"""\n${result}\n"""` })
     checkClaude().then(() => {
       if (follow.trim()) send(follow)
@@ -1321,8 +1249,7 @@ function createLauncher() {
       case 'fattach': {
         const x = curSplit() as FileEntry | undefined
         if (!x) break
-        clearInterval(tm)
-        Object.assign(s, { view: 'chat', messages: [], chatTitle: 'New chat', attach: x.name, stream: null, approval: null, chatInput: '' })
+        Object.assign(s, { view: 'chat', messages: [], chatTitle: 'New chat', attach: x.name, stream: null, chatInput: '' })
         break
       }
       case 'xuninstall': {
@@ -1389,7 +1316,6 @@ function createLauncher() {
       case 'newchat': newChat(); break
       case 'togglechats': s.showChats = !s.showChats; break
       case 'attach': attachClip(); break
-      case 'agent': s.agent = !s.agent; break
       case 'aipaste':
         // Typing into the other app isn't wired up yet, so the result goes on the clipboard.
         if (s.ai?.result) closeWith(`Copied the ${aiCmd().title.toLowerCase()} result. Paste it with Ctrl V.`, () => copyText(s.ai!.result!))
@@ -1555,22 +1481,6 @@ function createLauncher() {
       } else if (k === 'Escape') {
         stop()
         s.al = null
-      }
-      return
-    }
-    if (s.approval) {
-      if (k === 'ArrowRight' || (k === 'Tab' && !sh)) {
-        stop()
-        s.approvalSel = (s.approvalSel + 1) % 3
-      } else if (k === 'ArrowLeft' || (k === 'Tab' && sh)) {
-        stop()
-        s.approvalSel = (s.approvalSel + 2) % 3
-      } else if (k === 'Enter') {
-        stop()
-        approve(ctrl ? 1 : s.approvalSel)
-      } else if (k === 'Escape') {
-        stop()
-        approve(2)
       }
       return
     }
@@ -1993,7 +1903,7 @@ function createLauncher() {
 
   // ---------- side effects ----------
 
-  watch(() => [s.view, s.open, s.actionsOpen, s.approval, !s.al, s.ai?.needsInput], () => focus())
+  watch(() => [s.view, s.open, s.actionsOpen, !s.al, s.ai?.needsInput], () => focus())
 
   watch(() => s.open, (o) => {
     if (o) {
@@ -2024,7 +1934,7 @@ function createLauncher() {
     chats, chatGroups, openSavedChat, claude,
     curClip, curSplit, curEmoji, detail, aiCmd, rowKeys, comboOwner, aliasOwner,
     toast, focus, go, openWin, back, closeWith, activate, runAction, runSplit, openActions,
-    onKey, saveHk, clearHk, saveAl, cfOk, sysConfirm, openChat, runAi, onbNext, onbBack, onbSkip, approve, checkAgain, attachClip, newChat, send,
+    onKey, saveHk, clearHk, saveAl, cfOk, sysConfirm, openChat, runAi, onbNext, onbBack, onbSkip, checkAgain, attachClip, newChat, send,
     submitDeploy, openDeploy, toggleOrig, editNote, theme
   }
 }

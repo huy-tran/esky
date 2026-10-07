@@ -190,13 +190,11 @@ class Order extends Model
     }
 }`
 
-export type ToolStatus = 'pending' | 'running' | 'done' | 'denied'
 
 export type ChatBlock =
   | { type: 'p', text: string }
   | { type: 'code', lang: string, file: string, code: string }
   | { type: 'list', items: string[] }
-  | { type: 'tool', cmd: string, status: ToolStatus, out?: string[] }
 
 export interface ChatMsg {
   role: 'user' | 'assistant'
@@ -215,9 +213,6 @@ export const CHAT_INIT: ChatMsg[] = [
 
 export const CHAT_TAIL = 'If the admin panel needs a view of only deleted orders, add a second scope that calls onlyTrashed() so the two cases stay separate.'
 export const REPLY = 'Yes. Chain it like any other scope, for example Order::visibleTo($user)->where(\'status\', \'paid\')->latest()->paginate(20). The withTrashed() call only widens the query for admins, so filters and pagination behave the same for everyone.'
-export const TOOL_OUT = ['INFO  Running migrations.', '2026_10_04_091233_add_deleted_at_to_orders ..... 41ms DONE', '2026_10_05_101500_create_order_notes_table ..... 18ms DONE']
-export const AFTER_TOOL = 'Both migrations ran cleanly. Orders now have a deleted_at column, so the visibleTo scope works as expected.'
-export const DENIED = 'No problem. Run php artisan migrate yourself when you\'re ready and the scope will work.'
 export const CHATS = [{ g: 'Today', items: ['Soft-delete scope for orders', 'Queue retry backoff'] }, { g: 'This week', items: ['Tailwind v4 migration notes', 'Regex for AU phone numbers', 'Tauri window focus on Alt+Space'] }]
 
 export const MODS = ['Ctrl', 'Win', 'Alt', 'Shift']

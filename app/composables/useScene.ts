@@ -1,12 +1,12 @@
 // Dev-only: open the launcher in a given state with `/?scene=<key>`. Not reachable in production builds.
 import { CLIP_INIT, ONB_TG, SEL, SERVERS, CHAT_INIT, type ChatMsg } from '~/data/fixtures'
 
-export const SCENES = ['main', 'lar', 'actions', 'calc', 'units', 'fx', 'web', 'clip', 'clipEmpty', 'chat', 'approval', 'setup', 'selection', 'aiResult', 'forgeList', 'forgeDetail', 'deploy', 'toastOk', 'toastErr', 'snippets', 'expand', 'qlinkRoot', 'quicklinks', 'windows', 'files', 'system', 'confirm', 'hotkey', 'hkConflict', 'alias', 'store', 'emoji', 'notes', 'float', 'onboard']
+export const SCENES = ['main', 'lar', 'actions', 'calc', 'units', 'fx', 'web', 'clip', 'clipEmpty', 'chat', 'setup', 'selection', 'aiResult', 'forgeList', 'forgeDetail', 'deploy', 'toastOk', 'toastErr', 'snippets', 'expand', 'qlinkRoot', 'quicklinks', 'windows', 'files', 'system', 'confirm', 'hotkey', 'hkConflict', 'alias', 'store', 'emoji', 'notes', 'float', 'onboard']
 
 export function useScene(k: string) {
   const L = useLauncher()
   const s = L.s
-  const st = (x: Record<string, unknown> = {}) => Object.assign(s, { open: true, view: 'search', query: '', sel: 0, actionsOpen: false, approval: null, selection: null, stream: null, claudeReady: true, notice: '', splitQuery: '', splitSel: 0, hk: null, al: null, confirm: null, onb: null }, x)
+  const st = (x: Record<string, unknown> = {}) => Object.assign(s, { open: true, view: 'search', query: '', sel: 0, actionsOpen: false, selection: null, stream: null, claudeReady: true, notice: '', splitQuery: '', splitSel: 0, hk: null, al: null, confirm: null, onb: null }, x)
   const clone = (): ChatMsg[] => CHAT_INIT.map(m => ({ ...m, blocks: [...m.blocks] }))
   L.floatId.value = null
   switch (k) {
@@ -24,9 +24,8 @@ export function useScene(k: string) {
       L.clip.value = []
       return st({ view: 'clipboard', clipSel: 0, clipQuery: '' })
     case 'chat':
-      st({ agent: false })
+      st()
       return L.openChat('')
-    case 'approval': return st({ view: 'chat', agent: true, alwaysAllow: false, chatTitle: 'Soft-delete scope for orders', messages: [...clone(), { role: 'user', blocks: [{ type: 'p', text: 'Run the migrations so I can test the scope.' }] }, { role: 'assistant', blocks: [{ type: 'p', text: 'I\'ll apply the pending migrations to your local database first.' }, { type: 'tool', cmd: 'php artisan migrate', status: 'pending' }] }], approval: { cmd: 'php artisan migrate', cwd: '~/Sites/northwind-api' }, approvalSel: 0 })
     case 'setup': return st({ view: 'chat', claudeReady: false, setupStep: 0, checking: false, messages: [], chatTitle: 'New chat' })
     case 'selection': return st({ selection: SEL })
     case 'aiResult':
