@@ -1,6 +1,6 @@
 // The one list of extensions. The Store, Settings → Extensions and root search all read from here.
 // Each extension declares its commands and its preferences; Settings builds the form from `prefs`.
-import { ITEMS, SERVERS } from '~/data/fixtures'
+import { ITEMS } from '~/data/fixtures'
 
 /** `folders` is a list of folders, one per line. */
 export type PrefType = 'text' | 'secret' | 'select' | 'switch' | 'number' | 'folder' | 'folders'
@@ -62,8 +62,9 @@ export const EXTENSIONS: ExtensionDef[] = [
     desc: 'Browse servers, open sites and trigger deployments without leaving the keyboard.',
     commands: [{ id: 'forgeSearch', title: 'Search Servers' }, { id: 'forgeDeploy', title: 'Deploy Site' }],
     prefs: [
-      { key: 'token', type: 'secret', label: 'API token', required: true, description: 'Create one at forge.laravel.com → Account → API Tokens.' },
-      { key: 'server', type: 'select', label: 'Default server', description: 'Preselected in Deploy Site.', default: SERVERS[0]!.name, options: SERVERS.map(s => ({ value: s.name, label: s.name })) },
+      { key: 'token', type: 'secret', label: 'API token', required: true, description: 'Create one at forge.laravel.com → Profile → API.' },
+      { key: 'organization', type: 'text', label: 'Organisation', description: 'Your Forge organisation’s slug. Leave empty to use your first one.', placeholder: 'acme' },
+      { key: 'server', type: 'text', label: 'Default server', description: 'Its name, preselected in Deploy Site.', placeholder: 'production' },
       alias('Search Servers')
     ]
   },

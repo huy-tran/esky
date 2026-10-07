@@ -2,48 +2,55 @@
 import { STATUS } from '~/data/fixtures'
 
 const L = useLauncher()
-const sv = computed(() => L.s.server)
+const forge = L.forge
+const sv = computed(() => L.s.server!)
+const sites = computed(() => forge.sites.value[sv.value.id])
+const deployments = computed(() => forge.deployments.value[sv.value.id] ?? [])
 
-type Block = { h1?: string, h2?: string, p?: string, li?: string }
-
-const md = computed((): Block[] => [
-  { h1: sv.value.name },
-  { p: `${sv.value.os} server on ${sv.value.provider} (${sv.value.size}), provisioned and managed by Laravel Forge.` },
-  { h2: 'SITES' },
-  ...sv.value.sites.map(x => ({ li: `\`${x}\`` })),
-  { h2: 'RECENT DEPLOYMENTS' },
-  { li: '`a3f91c2` Fix order export timezone · 12 min ago' },
-  { li: '`7be20d4` Add soft deletes to orders · yesterday' },
-  { li: '`19c0e8a` Bump Laravel to 12.4 · 3 days ago' },
-  { h2: 'NOTES' },
-  { p: 'Nightly backups run at 02:00 AEST. Queue workers restart automatically after each deploy via `php artisan queue:restart`.' }
-])
+const when = (iso: string) => iso ? new Date(iso).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''
+const tone = (status: string) => /finished|deployed/.test(status) ? 'var(--ok)' : /fail|cancel/.test(status) ? 'var(--err)' : 'var(--warn)'
 
 const meta = computed(() => [
   { k: 'Status', v: STATUS[sv.value.status][0], dot: STATUS[sv.value.status][1] },
   { k: 'IP address', v: sv.value.ip, mono: true },
   { k: 'Provider', v: sv.value.provider },
   { k: 'Region', v: sv.value.region },
-  { k: 'PHP', v: sv.value.php },
-  { k: 'Sites', v: String(sv.value.sites.length) },
-  { k: 'Last deploy', v: sv.value.deploy }
+  { k: 'Size', v: sv.value.size },
+  { k: 'PHP', v: sv.value.php || 'None' },
+  { k: 'SSH', v: `forge@${sv.value.ip}${sv.value.sshPort !== 22 ? ` -p ${sv.value.sshPort}` : ''}`, mono: true }
 ])
 </script>
 
 <template>
   <div class="flex h-full">
     <div class="flex-1 min-w-0 overflow-y-auto py-4 px-[22px] flex flex-col gap-2 text-[13.5px] leading-[1.6]">
-      <template v-for="(b, i) in md" :key="i">
-        <div v-if="b.h1" class="text-[20px] font-semibold tracking-[-.01em]">{{ b.h1 }}</div>
-        <div v-else-if="b.h2" class="text-[12px] font-semibold tracking-[.04em] text-(--faint) mt-2">{{ b.h2 }}</div>
-        <div v-else-if="b.p" class="text-(--fg) text-pretty"><LauncherInlineMd :text="b.p" /></div>
-        <div v-else-if="b.li" class="flex gap-2"><span class="text-(--faint)">•</span><span><LauncherInlineMd :text="b.li" /></span></div>
-      </template>
+      <div class="text-[20px] font-semibold tracking-[-.01em]">{{ sv.name }}</div>
+      <div class="text-(--muted)">{{ sv.ubuntu }} server on {{ sv.provider }}{{ sv.size ? ` (${sv.size})` : '' }}, managed by Laravel Forge.</div>
+
+      <div class="text-[12px] font-semibold tracking-[.04em] text-(--faint) mt-2">SITES</div>
+      <div v-if="!sites" class="flex items-center gap-2 text-(--muted)"><Spinner :size="12" />Loading…</div>
+      <div v-else-if="!sites.length" class="text-(--muted)">No sites yet.</div>
+      <div v-for="x in sites" :key="x.id" class="flex items-center gap-2 min-w-0">
+        <span class="size-2 flex-none rounded-full" :style="{ background: tone(x.status) }" :title="x.status" />
+        <span class="font-mono text-[12.5px] truncate">{{ x.name }}</span>
+        <span v-if="x.branch" class="text-[12px] text-(--muted) flex-none">· {{ x.branch }}</span>
+      </div>
+
+      <div class="text-[12px] font-semibold tracking-[.04em] text-(--faint) mt-2">RECENT DEPLOYMENTS</div>
+      <div v-if="sites && !deployments.length" class="text-(--muted)">None yet.</div>
+      <div v-for="d in deployments" :key="d.id" class="flex gap-2 min-w-0">
+        <span class="size-2 mt-[7px] flex-none rounded-full" :style="{ background: tone(d.status) }" :title="d.status" />
+        <span class="min-w-0">
+          <span v-if="d.commit" class="font-mono text-[12px] bg-(--code-bg) px-1 rounded-[4px]">{{ d.commit }}</span>
+          {{ d.message || d.status }}
+          <span class="text-[12px] text-(--muted)">· {{ d.site }} · {{ when(d.at) }}</span>
+        </span>
+      </div>
     </div>
     <div class="w-[252px] flex-none border-l border-(--bd) p-4 flex flex-col gap-3 overflow-y-auto">
       <div v-for="m in meta" :key="m.k">
         <div class="text-[11.5px] text-(--muted)">{{ m.k }}</div>
-        <div class="text-[13px] mt-0.5 flex items-center gap-1.5" :class="m.mono ? 'font-mono' : ''">
+        <div class="text-[13px] mt-0.5 flex items-center gap-1.5 break-all" :class="m.mono ? 'font-mono' : ''">
           <span v-if="m.dot" class="inline-block size-2 rounded-full" :style="{ background: m.dot }" />{{ m.v }}
         </div>
       </div>

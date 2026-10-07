@@ -1,10 +1,10 @@
 // Launcher state and behaviour.
 import {
-  AI_CMDS, BRANCHES, EMOJI, FAVS, GROUPS,
-  ITEMS, KIND_LABEL, NOTES_INIT, ONB_HK, RECENT, SERVERS,
+  AI_CMDS, EMOJI, FAVS, GROUPS,
+  ITEMS, KIND_LABEL, NOTES_INIT, ONB_HK, RECENT,
   SPLIT, SPLIT_FOOT, SPLIT_KEYS, SUGGEST, SYS_CONFIRM, USAGE_INIT, WIN_CMDS,
   type ChatMsg, type Emoji, type FileEntry, type Note, type Quicklink,
-  type Selection, type Server, type Snippet, type SplitView, type WinCmd
+  type Selection, type Snippet, type SplitView, type WinCmd
 } from '~/data/fixtures'
 import { EXTENSIONS, commandFor, extById, type ExtensionDef } from '~/extensions/registry'
 import { quick, resolveQ as resolveQuicklink, type QuickCard } from '~/utils/quick'
@@ -12,7 +12,6 @@ import { useAliases, useExtensions } from './useExtensions'
 import { useClaude, type ClaudeRun } from './useClaude'
 import type { ClaudeStatus } from '~/utils/claude'
 import { markdownBlocks } from '~/utils/markdown'
-import { DeploySchema } from '~/utils/schemas'
 import { lookup, type DictEntry } from '~/utils/dictionary'
 import type { HerdSite } from '~/utils/herd'
 import { useHerd } from './useHerd'
@@ -26,10 +25,11 @@ import { useQuicklinks } from './useQuicklinks'
 import { useSnippets } from './useSnippets'
 import { fileKind, useFiles } from './useFiles'
 import { useDocker, type DockerKind } from './useDocker'
+import { useForge, type ForgeServer } from './useForge'
 import { formatColour, useColours, type ColourFormat, type SavedColour } from './useColours'
 import { clipDay, clipPreview, copyPrivate, useClipboard, type ClipEntry } from './useClipboard'
 import { comboOf, formatBytes, phSegs, trunc, type BodySeg } from '~/utils/text'
-import { captureTarget, clearTarget, copyText, ejectDrive, floatNote, hideWindow, isTauri, openSettings, openUrl, pasteToTarget, readClipboardText, recycleBinInfo, removableDrives, revealPath, showWindow, systemAction, windowLayout, type SystemAction } from './usePlatform'
+import { captureTarget, clearTarget, copyText, ejectDrive, floatNote, hideWindow, isTauri, openSettings, openUrl, pasteToTarget, readClipboardText, recycleBinInfo, removableDrives, revealPath, openSsh, showWindow, systemAction, windowLayout, type SystemAction } from './usePlatform'
 import { persistRef } from './usePersist'
 import { useSettings } from './useSettings'
 
@@ -137,11 +137,12 @@ function createLauncher() {
     followUp: '',
     forgeQuery: '',
     forgeSel: 0,
-    server: SERVERS[0]!,
-    deploy: { site: 'northwind.app', branch: 'main', migrate: true },
+    server: null as ForgeServer | null,
+    /** Deploy Site: the chosen site, and the deployment while it runs and once it ends. */
+    deploy: { siteId: '' },
     deploying: false,
+    deployRun: null as null | { site: string, status: string, log?: string, ok?: boolean },
     deployFrom: 'forgeDetail' as View,
-    branchErr: '',
     splitQuery: '',
     splitSel: 0,
     args: {} as Record<string, string>,
@@ -545,8 +546,8 @@ function createLauncher() {
 
   const forgeModel = computed(() => {
     const q = s.forgeQuery.trim().toLowerCase()
-    const list = SERVERS.filter(x => !q || x.name.includes(q) || x.ip.includes(q) || x.provider.toLowerCase().includes(q))
-    const groups = ['DigitalOcean', 'AWS', 'Hetzner'].map(p => ({ title: p, rows: list.filter(x => x.provider === p) })).filter(g => g.rows.length)
+    const list = forge.servers.value.filter(x => !q || x.name.toLowerCase().includes(q) || x.ip.includes(q) || x.provider.toLowerCase().includes(q))
+    const groups = [...new Set(list.map(x => x.provider))].map(p => ({ title: p, rows: list.filter(x => x.provider === p) }))
     return { groups, flat: groups.flatMap(g => g.rows) }
   })
 
@@ -785,6 +786,7 @@ function createLauncher() {
   // ---------- Docker ----------
 
   const docker = useDocker()
+  const forge = useForge()
   const dockerModel = computed(() => {
     const q = s.dockerQuery.trim().toLowerCase()
     return docker.rows.value.filter(r => !q || r.title.toLowerCase().includes(q) || r.sub.toLowerCase().includes(q))
@@ -951,15 +953,12 @@ function createLauncher() {
     if (id === 'eject') return ejectAll()
     if (it.go === 'clipboard') return go('clipboard', { clipQuery: '', clipSel: 0 })
     if (it.go === 'chat') return openChat('')
-    if (it.go === 'forgeList') return go('forgeList', { forgeQuery: '', forgeSel: 0 })
+    if (it.go === 'forgeList') return openForgeList()
     if (it.go === 'herdList') return openHerd()
     if (it.go === 'gitList') return openGit()
     if (it.go === 'password') return openPassword()
     if (it.go === 'dictionary') return openDictionary()
-    if (it.go === 'deploy') {
-      const name = exts.prefsFor('forge').server
-      return openDeploy(SERVERS.find(x => x.name === name) ?? SERVERS[0]!, 'search')
-    }
+    if (it.go === 'deploy') return openDeployDefault()
     if (it.go === 'theme') {
       colorMode.preference = theme() === 'dark' ? 'light' : 'dark'
       return
@@ -1403,26 +1402,55 @@ function createLauncher() {
     focus()
   }
 
-  function openDeploy(server: Server, from: View) {
-    go('deploy', { server, deployFrom: from, deploy: { site: server.sites[0]!, branch: 'main', migrate: true }, branchErr: '', deploying: false })
+  // ---------- Laravel Forge ----------
+
+  function openForgeList() {
+    go('forgeList', { forgeQuery: '', forgeSel: 0 })
+    forge.load()
   }
 
-  function submitDeploy() {
-    if (s.deploying) return
-    const parsed = DeploySchema.safeParse(s.deploy)
-    if (!parsed.success) {
-      s.branchErr = parsed.error.issues[0]?.message ?? 'Branch is required'
-      return
+  function openServer(server: ForgeServer) {
+    go('forgeDetail', { server })
+    forge.loadServer(server).catch(e => toast('error', 'Couldn’t load the server’s sites', String(e)))
+  }
+
+  async function openDeploy(server: ForgeServer, from: View) {
+    go('deploy', { server, deployFrom: from, deploy: { siteId: '' }, deploying: false, deployRun: null })
+    try {
+      if (!forge.sites.value[server.id]) await forge.loadServer(server)
+      s.deploy = { siteId: forge.sites.value[server.id]?.[0]?.id ?? '' }
+    } catch (e) {
+      toast('error', 'Couldn’t load the server’s sites', String(e))
     }
-    const br = parsed.data.branch
+  }
+
+  /** Deploy Site from search: the default server from the Forge preferences, or the first one. */
+  async function openDeployDefault() {
+    if (!forge.servers.value.length) await forge.load()
+    const name = String(exts.prefsFor('forge').server || '').toLowerCase()
+    const server = forge.servers.value.find(x => x.name.toLowerCase() === name) ?? forge.servers.value[0]
+    if (server) return openDeploy(server, 'search')
+    openForgeList()
+  }
+
+  async function submitDeploy() {
+    const server = s.server
+    const site = server && forge.sites.value[server.id]?.find(x => x.id === s.deploy.siteId)
+    if (s.deploying || !server || !site) return
     s.deploying = true
-    s.branchErr = ''
-    setTimeout(() => {
+    s.deployRun = { site: site.name, status: 'queued' }
+    try {
+      const r = await forge.deploy(server, site, (status) => { s.deployRun = { site: site.name, status } })
+      const ok = r.status === 'finished'
+      s.deployRun = { site: site.name, status: r.status, log: r.log, ok }
+      toast(ok ? 'success' : 'error', ok ? `Deployed ${site.name}` : `Deployment ${r.status.replace('-', ' ')}`, site.branch ? `Branch ${site.branch}` : undefined)
+      forge.loadServer(server).catch(() => {})
+    } catch (e) {
+      s.deployRun = { site: site.name, status: 'error', log: String(e), ok: false }
+      toast('error', 'Couldn’t start the deployment', String(e))
+    } finally {
       s.deploying = false
-      const d = s.deploy
-      if (BRANCHES.includes(br)) toast('success', `Deployed ${d.site}`, `${br} · ${d.migrate ? 'migrations ran · ' : ''}finished in 38s`)
-      else toast('error', 'Deployment failed', `Branch “${br}” was not found on origin.`, { label: 'Retry', run: () => submitDeploy() })
-    }, 1400)
+    }
   }
 
   const toggleOrig = () => {
@@ -1600,14 +1628,14 @@ function createLauncher() {
           toast('info', 'Clipboard History cleared')
         } }
         break
-      case 'fopen': if (sv) go('forgeDetail', { server: sv }); break
+      case 'fopen': if (sv) openServer(sv); break
       case 'fdeploy': if (sv) openDeploy(sv, s.view); break
-      case 'fforge': if (sv) closeWith(`Opened ${sv.name} in Laravel Forge`, () => openUrl('https://forge.laravel.com/servers')); break
+      case 'fforge': if (sv) closeWith(`Opened ${sv.name} in Laravel Forge`, () => openUrl(forge.serverUrl(sv))); break
       case 'fip': if (sv) {
         copyText(sv.ip)
         toast('success', 'IP address copied', sv.ip)
       } break
-      case 'fssh': if (sv) closeWith(`Opened SSH session to ${sv.name} in Windows Terminal`); break
+      case 'fssh': if (sv) closeWith(`Opened SSH to ${sv.name}`, () => openSsh('forge', sv.ip, sv.sshPort).catch(e => toast('error', 'Couldn’t open SSH', String(e)))); break
       case 'newchat': newChat(); break
       case 'togglechats': s.showChats = !s.showChats; break
       case 'attach': attachClip(); break
@@ -2199,7 +2227,7 @@ function createLauncher() {
     if (v === 'forgeDetail') {
       if (k === 'Enter' || (ctrl && kl === 'd')) {
         stop()
-        openDeploy(s.server, 'forgeDetail')
+        if (s.server) openDeploy(s.server, 'forgeDetail')
       } else if (ctrl && kl === 'o') {
         stop()
         runAction('fforge')
@@ -2253,7 +2281,7 @@ function createLauncher() {
     if (v === 'password') return { app: { icon: 'i-lucide-key-round', tile: '#175DDC', name: 'Password Generator' }, hints: [hint('Copy', ['↵'], () => runAction('pwcopy'), true), hint('Regenerate', ['Ctrl', 'R'], () => runAction('pwnew')), act] }
     if (v === 'dictionary') return { app: { icon: 'i-lucide-book-a', tile: '#0369A1', name: 'Dictionary' }, hints: [hint('Copy', ['↵'], () => runAction('dcopy'), true), hint('Wiktionary', ['Ctrl', 'O'], () => runAction('dopen')), act] }
     if (v === 'forgeList') return { app: FORGE, hints: [hint('Show Details', ['↵'], () => runAction('fopen'), true), hint('Deploy', ['Ctrl', 'D'], () => runAction('fdeploy')), act] }
-    if (v === 'forgeDetail') return { app: FORGE, hints: [hint('Deploy Site', ['↵'], () => openDeploy(s.server, 'forgeDetail'), true), hint('Open in Forge', ['Ctrl', 'O'], () => runAction('fforge')), act] }
+    if (v === 'forgeDetail') return { app: FORGE, hints: [hint('Deploy Site', ['↵'], () => s.server && openDeploy(s.server, 'forgeDetail'), true), hint('Open in Forge', ['Ctrl', 'O'], () => runAction('fforge')), act] }
     if (v === 'deploy') return { app: FORGE, hints: [hint('Deploy', ['Ctrl', '↵'], submitDeploy, true), hint('Next field', ['Tab']), hint('Back', ['Esc'], back)] }
     if (SPLIT[v]) {
       const [app, defs] = SPLIT_FOOT_FOR(v as SplitView)
@@ -2324,7 +2352,7 @@ function createLauncher() {
   return {
     s, els, ready, favs, disabled, usage, recent, aliases, hotkeys, installed, notes, clip, floatId, settings,
     searchModel, clipModel, forgeModel, splitModel, emojiModel, actionsModel, footer,
-    apps, qls, sn, files, docker, dockerModel, herd, herdModel, openSite, git, gitModel, pw, copyPassword, dict, dictFlat, openDictionary,
+    apps, qls, sn, files, docker, dockerModel, forge, openServer, openForgeList, herd, herdModel, openSite, git, gitModel, pw, copyPassword, dict, dictFlat, openDictionary,
     chats, chatGroups, openSavedChat, claude,
     curClip, curSplit, curEmoji, detail, aiCmd, rowKeys, comboOwner, aliasOwner,
     toast, focus, go, openWin, openFromHotkey, openFromTray, activateFromHotkey, back, closeWith, activate, runAction, runSplit, openActions,

@@ -198,3 +198,6 @@ export const pasteToTarget = (text: string) => invokeDesktop<void>('paste_to_tar
 /** Move or size the app Esky was opened from: a named layout, or a rectangle in percent of its screen. */
 export const windowLayout = (layout: 'maximize' | 'restore' | 'center' | 'next-display' | 'rect', rect?: [number, number, number, number]) =>
   invokeDesktop<void>('window_layout', { layout, rect: rect ?? null })
+
+/** `ssh user@host -p port` in Windows Terminal. */
+export const openSsh = (user: string, host: string, port: number) => invokeDesktop<void>('open_ssh', { user, host, port })

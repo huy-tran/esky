@@ -30,7 +30,7 @@ const value = computed({
   set: (q: string) => top.value?.set(q)
 })
 
-const title = computed(() => s.view === 'forgeDetail' ? s.server.name : s.view === 'deploy' ? 'Deploy Site' : s.view === 'password' ? 'Generate Password' : s.view === 'aiResult' ? L.aiCmd().title : '')
+const title = computed(() => s.view === 'forgeDetail' ? s.server?.name ?? '' : s.view === 'deploy' ? 'Deploy Site' : s.view === 'password' ? 'Generate Password' : s.view === 'aiResult' ? L.aiCmd().title : '')
 
 const chip = computed(() => {
   const fc = L.forgeModel.value.flat.length

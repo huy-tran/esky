@@ -1,7 +1,7 @@
 // Dev-only: open the launcher in a given state with `/?scene=<key>`. Not reachable in production builds.
-import { ONB_TG, SEL, SERVERS, CHAT_INIT, type ChatMsg } from '~/data/fixtures'
+import { ONB_TG, SEL, CHAT_INIT, type ChatMsg } from '~/data/fixtures'
 
-export const SCENES = ['main', 'lar', 'actions', 'calc', 'units', 'fx', 'web', 'clip', 'chat', 'setup', 'selection', 'aiResult', 'forgeList', 'forgeDetail', 'deploy', 'toastOk', 'toastErr', 'snippets', 'expand', 'qlinkRoot', 'quicklinks', 'windows', 'files', 'system', 'confirm', 'hotkey', 'hkConflict', 'alias', 'store', 'emoji', 'notes', 'float', 'onboard']
+export const SCENES = ['main', 'lar', 'actions', 'calc', 'units', 'fx', 'web', 'clip', 'chat', 'setup', 'selection', 'aiResult', 'forgeList', 'snippets', 'qlinkRoot', 'quicklinks', 'windows', 'files', 'system', 'confirm', 'hotkey', 'hkConflict', 'alias', 'store', 'emoji', 'notes', 'float', 'onboard']
 
 export function useScene(k: string) {
   const L = useLauncher()
@@ -27,16 +27,11 @@ export function useScene(k: string) {
     case 'aiResult':
       st({ selection: SEL })
       return L.runAi('grammar')
-    case 'forgeList': return st({ view: 'forgeList', forgeQuery: '', forgeSel: 0 })
-    case 'forgeDetail': return st({ view: 'forgeDetail', server: SERVERS[0] })
-    case 'deploy':
+    case 'forgeList':
       st()
-      return L.openDeploy(SERVERS[0]!, 'forgeDetail')
+      return L.openForgeList()
     case 'snippets': case 'quicklinks': case 'windows': case 'files': case 'emoji': case 'notes':
       return st({ view: k })
-    case 'expand':
-      st()
-      return L.closeWith('Expanded ;sig in Outlook')
     case 'qlinkRoot': return st({ query: 'gh tauri window focus' })
     case 'system': return st({ query: 'system' })
     case 'confirm': return st({ query: 'restart', confirm: L.sysConfirm('restart') })
@@ -49,14 +44,5 @@ export function useScene(k: string) {
       L.floatId.value = 'n1'
       return
     case 'onboard': return st({ onb: { step: 0, hk: 0, tg: { ...ONB_TG } } })
-    case 'toastOk':
-      st()
-      L.openDeploy(SERVERS[0]!, 'forgeDetail')
-      return L.toast('success', 'Deployed northwind.app', 'main · migrations ran · finished in 38s')
-    case 'toastErr':
-      st()
-      L.openDeploy(SERVERS[0]!, 'forgeDetail')
-      s.deploy.branch = 'feature/payments'
-      return L.toast('error', 'Deployment failed', 'Branch “feature/payments” was not found on origin.', { label: 'Retry', run: () => L.submitDeploy() })
   }
 }

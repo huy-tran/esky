@@ -108,33 +108,10 @@ export const DIM: Record<string, string> = { len: 'Length', mass: 'Mass', temp: 
 
 export type ServerStatus = 'active' | 'provisioning' | 'stopped'
 
-export interface Server {
-  id: string
-  name: string
-  ip: string
-  php: string
-  provider: string
-  pIcon: string
-  region: string
-  status: ServerStatus
-  sites: string[]
-  deploy: string
-  size: string
-  os: string
-}
 
-export const SERVERS: Server[] = [
-  { id: 's1', name: 'northwind-prod-01', ip: '170.64.132.18', php: '8.4', provider: 'DigitalOcean', pIcon: 'i-lucide-droplet', region: 'Sydney · syd1', status: 'active', sites: ['northwind.app', 'api.northwind.app', 'admin.northwind.app'], deploy: '12 min ago · main', size: '4 vCPU · 8 GB', os: 'Ubuntu 24.04' },
-  { id: 's2', name: 'northwind-queue', ip: '170.64.140.7', php: '8.4', provider: 'DigitalOcean', pIcon: 'i-lucide-droplet', region: 'Sydney · syd1', status: 'active', sites: ['queue.northwind.app'], deploy: '2 h ago · main', size: '2 vCPU · 4 GB', os: 'Ubuntu 24.04' },
-  { id: 's3', name: 'acme-staging', ip: '170.64.151.90', php: '8.3', provider: 'DigitalOcean', pIcon: 'i-lucide-droplet', region: 'Sydney · syd1', status: 'provisioning', sites: ['staging.acme.dev', 'preview.acme.dev'], deploy: 'Yesterday · develop', size: '2 vCPU · 2 GB', os: 'Ubuntu 24.04' },
-  { id: 's4', name: 'shop-api-syd', ip: '13.211.42.105', php: '8.3', provider: 'AWS', pIcon: 'i-lucide-cloud', region: 'Sydney · ap-southeast-2', status: 'active', sites: ['api.shopfront.com.au'], deploy: '4 h ago · release/2.4', size: 't3.large', os: 'Ubuntu 22.04' },
-  { id: 's5', name: 'legacy-crm', ip: '54.252.18.33', php: '8.1', provider: 'AWS', pIcon: 'i-lucide-cloud', region: 'Sydney · ap-southeast-2', status: 'stopped', sites: ['crm.acme.dev'], deploy: '34 days ago · master', size: 't3.medium', os: 'Ubuntu 20.04' },
-  { id: 's6', name: 'tools-box', ip: '5.161.88.12', php: '8.4', provider: 'Hetzner', pIcon: 'i-lucide-server', region: 'Falkenstein · fsn1', status: 'active', sites: ['status.acme.dev', 'n8n.acme.dev'], deploy: '3 days ago · main', size: 'CPX31', os: 'Ubuntu 24.04' }
-]
 
 export const STATUS: Record<ServerStatus, [string, string]> = { active: ['Active', 'var(--ok)'], provisioning: ['Provisioning', 'var(--warn)'], stopped: ['Stopped', 'var(--err)'] }
 
-export const BRANCHES = ['main', 'develop', 'release/2.4']
 
 const CODE = String.raw`<?php
 

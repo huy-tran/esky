@@ -636,6 +636,25 @@ async fn ext_api(ext: String, method: String, url: String, body: Option<serde_js
     tauri::async_runtime::spawn_blocking(move || api::request(&ext, &method, &url, body, user)).await.map_err(|e| e.to_string())?
 }
 
+/// `ssh user@host -p port` in Windows Terminal (or PowerShell).
+#[tauri::command]
+fn open_ssh(user: String, host: String, port: u16) -> Result<(), String> {
+    let ok = |s: &str| !s.is_empty() && !s.starts_with('-') && s.chars().all(|c| c.is_ascii_alphanumeric() || ".-_:".contains(c));
+    if !ok(&user) || !ok(&host) {
+        return Err("Not a server address".into());
+    }
+    let target = format!("{user}@{host}");
+    let port = port.to_string();
+    if Command::new("wt.exe").args(["new-tab", "--title", &host, "ssh", "-p", &port, &target]).spawn().is_ok() {
+        return Ok(());
+    }
+    Command::new("powershell.exe")
+        .args(["-NoExit", "-Command", "ssh", "-p", &port, &target])
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -690,7 +709,8 @@ pub fn run() {
             docker_list,
             docker_action,
             colour_pick,
-            ext_api
+            ext_api,
+            open_ssh
         ])
         .setup(|app| {
             let window = app

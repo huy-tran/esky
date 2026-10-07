@@ -37,6 +37,7 @@ Last updated: 6 Oct 2026 (Git, Password Generator, Script Commands dropped).
 - [x] Window Layouts on the window Esky was opened from: halves, thirds, centre, maximise, restore (to where it was before Esky moved it), next display; fitted to the work area and Windows 11's invisible borders. Rust `window.rs`. No default hotkeys (assign them in Settings → Shortcuts)
 - [x] File Search: an in-memory index of file names in the folders from Settings → Extensions → File Search (skips node_modules, vendor, .git and build folders; reindexed every 15 minutes), Windows' Recent files, text and thumbnail previews, Open, Open With, Reveal, Copy Path, attach to AI Chat; top matches in root search. Rust `files.rs`
 - [x] Media Controls (Windows media sessions: play/pause, next, previous; Spotify-only option), Docker (containers, Compose projects, images through the docker CLI: start, stop, restart, remove, logs in Windows Terminal), Colour Picker (click anywhere, crosshair, Esc cancels; Saved Colours in HEX/RGB/HSL). Rust `media.rs`, `docker.rs`, `colour.rs`
+- [x] Laravel Forge through its current organisation API (`/orgs/{org}/…`): servers, sites with branches, recent deployments, real deploys followed to the end with the log, SSH in Windows Terminal. Calls go through Rust `api.rs`, which adds the token from Credential Manager and only allows each service's own address
 - [x] Git → Uncommitted Changes: repos with uncommitted changes or unpushed commits in the folders set in Settings → Extensions → Git (default `~\Herd`, `~\Frontend`); changed files, branch, open in editor or Windows Terminal. Rust `git_status` / `open_terminal` in the app, `server/api/git/status.get.ts` in the browser
 - [x] Password Generator: password or passphrase with Bitwarden's options, defaults and rules (EFF long word list); options are saved, generated values never are
 
@@ -51,7 +52,6 @@ Last updated: 6 Oct 2026 (Git, Password Generator, Script Commands dropped).
 | Area | What is fake |
 |---|---|
 | GitHub, Jira, Sentry extensions | Commands only open a web page; the saved tokens are never used |
-| Laravel Forge | 6 sample servers; Deploy is a timed fake; SSH does nothing; the API token is never used |
 | Settings → AI | The API-key backend isn't connected |
 
 ## Next steps (in order)
@@ -61,7 +61,7 @@ Last updated: 6 Oct 2026 (Git, Password Generator, Script Commands dropped).
 3. [x] Real Clipboard History: watch the clipboard, honour the ignore list and history settings, paste back. Values copied from the Password Generator aren't recorded.
 4. [x] Real file search (chosen folders, plus Windows' Recent files).
 5. [ ] Paste into the previous app (needed by Snippets, Emoji, Clipboard, Quick AI) and read the selected text for Quick AI.
-6. [ ] Laravel Forge API with the saved token (servers, sites, deploy).
+6. [x] Laravel Forge API with the saved token (servers, sites, deploy).
 7. [x] Window layouts and system commands (Win32 calls from Rust).
 8. [ ] Agent mode: Claude Code tools with Esky's approval dialog and the allowed-tools list.
 9. [ ] Live currency rates, real updater (Tauri updater plugin), API-key AI backend, model choice in Settings.
