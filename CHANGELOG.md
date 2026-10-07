@@ -20,12 +20,13 @@ All notable changes to Esky are listed here. The format follows [Keep a Changelo
 - Laravel Forge: servers, sites, deployments with their log, and SSH.
 - GitHub, Jira (including Log Work) and Sentry commands that load your own data.
 - AI Chat and Quick AI can use an Anthropic API key instead of Claude Code, with a choice of model.
-- Google Translate: translate between two languages you pick (remembered), in either direction; `tr` and your text from root search.
+- Google Translate: translate between two languages you pick (remembered), in either direction, with side-by-side text boxes; `tr` and your text from root search, or Ctrl 5 on selected text.
 
 ### Removed
 
 - The sample applications and files in search results, which opened nothing.
 - Agent mode.
+- The Quick AI "Translate English ↔ Vietnamese" command (Google Translate replaces it). Quick AI shortcuts are now Ctrl 1 to Ctrl 4.
 - Default system-wide hotkeys for features that don't work yet (Ctrl Shift V for Clipboard History, Ctrl Alt arrows for window layouts), which took those keys away from other apps.
 
 ## 0.1.0 - 2026-10-07

@@ -56,7 +56,6 @@ export const ITEMS: Record<string, Item> = {
   forgeSearch: { title: 'Search Servers', sub: 'Laravel Forge', icon: 'i-lucide-hammer', tile: '#EA580C', kind: 'cmd', go: 'forgeList' },
   forgeDeploy: { title: 'Deploy Site', sub: 'Laravel Forge', icon: 'i-lucide-rocket', tile: '#EA580C', kind: 'cmd', go: 'deploy' },
   grammar: { title: 'Fix Grammar', sub: 'Quick AI', icon: 'i-lucide-spell-check', kind: 'cmd', ai: 'grammar' },
-  aiTranslate: { title: 'Translate English ↔ Vietnamese', sub: 'Quick AI', icon: 'i-lucide-languages', kind: 'cmd', ai: 'translate' },
   aiExplain: { title: 'Explain Code', sub: 'Quick AI', icon: 'i-lucide-braces', kind: 'cmd', ai: 'explain' },
   aiSummarise: { title: 'Summarise', sub: 'Quick AI', icon: 'i-lucide-scroll-text', kind: 'cmd', ai: 'summarise' },
   aiCommit: { title: 'Write Commit Message', sub: 'Quick AI', icon: 'i-lucide-git-commit-horizontal', kind: 'cmd', ai: 'commit' },
@@ -79,10 +78,9 @@ export interface AiCmd { id: string, title: string, icon: string, keys: string[]
 
 export const AI_CMDS: AiCmd[] = [
   { id: 'grammar', title: 'Fix Grammar', icon: 'i-lucide-spell-check', keys: ['Ctrl', '1'] },
-  { id: 'translate', title: 'Translate English ↔ Vietnamese', icon: 'i-lucide-languages', keys: ['Ctrl', '2'] },
-  { id: 'explain', title: 'Explain Code', icon: 'i-lucide-braces', keys: ['Ctrl', '3'] },
-  { id: 'summarise', title: 'Summarise', icon: 'i-lucide-scroll-text', keys: ['Ctrl', '4'] },
-  { id: 'commit', title: 'Write Commit Message', icon: 'i-lucide-git-commit-horizontal', keys: ['Ctrl', '5'] }
+  { id: 'explain', title: 'Explain Code', icon: 'i-lucide-braces', keys: ['Ctrl', '2'] },
+  { id: 'summarise', title: 'Summarise', icon: 'i-lucide-scroll-text', keys: ['Ctrl', '3'] },
+  { id: 'commit', title: 'Write Commit Message', icon: 'i-lucide-git-commit-horizontal', keys: ['Ctrl', '4'] }
 ]
 
 export interface Selection { text: string, app: string }
@@ -91,7 +89,6 @@ export const SEL: Selection = { text: 'i has went to the meeting yesterday and w
 
 export const AI_OUT: Record<string, string> = {
   grammar: 'I went to the meeting yesterday and we discussed the deploy schedule. It looks fine to me, but we need to confirm the database migration first.',
-  translate: 'Hôm qua tôi đã đến cuộc họp và chúng tôi đã thảo luận về lịch triển khai. Tôi thấy ổn, nhưng chúng ta cần xác nhận việc di chuyển cơ sở dữ liệu trước.',
   explain: 'This selection is plain text rather than code. It is a status note: the deploy schedule was discussed yesterday and looks fine, pending confirmation of the database migration.\n\nSelect a snippet in your editor to get a line-by-line explanation.',
   summarise: 'Deploy schedule reviewed at yesterday\'s meeting and looks fine. The database migration still needs to be confirmed before going ahead.',
   commit: 'chore(deploy): hold release until migration is confirmed\n\nDeploy schedule reviewed in yesterday\'s meeting. Release waits on confirmation of the pending database migration.'

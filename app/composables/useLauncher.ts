@@ -212,6 +212,7 @@ function createLauncher() {
     arg: null as HTMLInputElement | null,
     note: null as HTMLTextAreaElement | null,
     aiInput: null as HTMLTextAreaElement | null,
+    tr: null as HTMLTextAreaElement | null,
     al: null as HTMLInputElement | null
   })
 
@@ -252,7 +253,7 @@ function createLauncher() {
   function focus() {
     requestAnimationFrame(() => {
       if (!s.open) return
-      const el = s.al ? els.al : s.actionsOpen ? els.act : s.view === 'chat' ? els.chat : s.view === 'deploy' ? els.deploy : s.view === 'aiResult' && s.ai?.needsInput ? els.aiInput : els.top
+      const el = s.al ? els.al : s.actionsOpen ? els.act : s.view === 'chat' ? els.chat : s.view === 'deploy' ? els.deploy : s.view === 'aiResult' && s.ai?.needsInput ? els.aiInput : s.view === 'translate' ? els.tr : els.top
       el?.focus?.()
     })
   }
@@ -517,7 +518,7 @@ function createLauncher() {
     let def: RegExpMatchArray | null
     let trq: RegExpMatchArray | null
     if (!q) {
-      if (s.selection) sections.push({ title: 'Use selected text', rows: AI_CMDS.map(c => ({ key: c.id, title: c.title, sub: 'Quick AI', icon: c.icon, keys: c.keys, kind: 'ai', run: () => runAi(c.id) })) })
+      if (s.selection) sections.push({ title: 'Use selected text', rows: [...AI_CMDS.map(c => ({ key: c.id, title: c.title, sub: 'Quick AI', icon: c.icon, keys: c.keys, kind: 'ai', run: () => runAi(c.id) })), { key: 'gtranslate', title: 'Translate', sub: `Google Translate · ${langName(trLangs.value[0])} ↔ ${langName(trLangs.value[1])}`, icon: 'i-lucide-languages', tile: '#1A73E8', keys: ['Ctrl', '5'], kind: 'cmd', run: () => openTranslate() }] })
       sections.push({ title: 'Favourites', rows: favs.value.filter(id => ITEMS[id] && ok(id)).map(id => mk(id)) })
       sections.push({ title: 'Recent', rows: recent.value.filter(id => ITEMS[id] && ok(id)).map(id => mk(id)) })
       sections.push({ title: 'Suggestions', rows: SUGGEST.filter(ok).map(id => mk(id)) })
@@ -2095,7 +2096,8 @@ function createLauncher() {
       }
       if (ctrl && !sh && /^[1-5]$/.test(k) && s.selection) {
         stop()
-        runAi(AI_CMDS[+k - 1]!.id)
+        if (+k > AI_CMDS.length) openTranslate()
+        else runAi(AI_CMDS[+k - 1]!.id)
         return
       }
       if (ctrl && sh && kl === 'v') {

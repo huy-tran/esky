@@ -163,7 +163,6 @@ export const CHECK_SYSTEM = 'Reply with the single word: ok'
 
 export const QUICK_SYSTEM: Record<string, string> = {
   grammar: 'Fix the grammar, spelling and punctuation of the text the user sends. Keep their meaning, tone and language. Reply with only the corrected text: no preamble, no quotes, no explanation.',
-  translate: 'Translate the text the user sends: English into Vietnamese, or Vietnamese into English. Reply with only the translation: no preamble, no quotes.',
   explain: 'Explain the code the user sends, clearly and briefly, for an experienced developer. If it is not code, say so in one sentence and summarise it instead.',
   summarise: 'Summarise the text the user sends in one to three plain sentences. Reply with only the summary.',
   commit: 'Write a Git commit message for the change described in the text the user sends: a subject line under 72 characters in conventional-commit style, then optionally a blank line and one or two short body lines. Reply with only the commit message.'

@@ -6,19 +6,25 @@ const s = L.s
 const tr = L.tr
 const items = LANGS.map(l => ({ value: l.code, label: l.name }))
 const pair = computed(() => L.trLangs.value)
-/** Which side of the pair the text was detected as (or -1 for a third language). */
-const fromSide = computed(() => {
+/** Did the text come in as a third language (neither side of the pair)? */
+const detected = computed(() => {
   const r = tr.result
-  if (!r) return -1
-  return sameLang(r.from, pair.value[0]) ? 0 : sameLang(r.from, pair.value[1]) ? 1 : -1
+  return !!r && !sameLang(r.from, pair.value[0]) && !sameLang(r.from, pair.value[1])
+})
+
+onBeforeUnmount(() => {
+  L.els.tr = null
 })
 
 const selectUi = { base: 'h-8 rounded-[6px] border border-(--bd) bg-(--input-bg) text-(--fg) text-[13px] pl-2.5 pr-8', trailingIcon: 'size-3.5 text-(--muted)', content: 'bg-(--pop-bg) ring-(--win-bd) min-w-[220px]', item: 'text-[13px]', input: 'text-[13px]' }
+const pane = 'flex-1 min-w-0 flex flex-col rounded-[8px] border border-(--bd) overflow-hidden'
+const paneHead = 'h-8 flex-none flex items-center gap-2 px-3 border-b border-(--bd) text-[11.5px] font-semibold tracking-[.04em] uppercase text-(--faint)'
+const paneFoot = 'h-8 flex-none flex items-center gap-2 px-3 text-[12px] text-(--muted)'
 </script>
 
 <template>
-  <div class="h-full flex flex-col">
-    <div class="flex items-center gap-2 px-[22px] pt-3.5 pb-3 border-b border-(--bd)">
+  <div class="h-full pt-3 px-4 pb-4 box-border flex flex-col gap-3">
+    <div class="flex items-center gap-2">
       <USelectMenu
         :model-value="pair[0]"
         :items="items"
@@ -50,30 +56,59 @@ const selectUi = { base: 'h-8 rounded-[6px] border border-(--bd) bg-(--input-bg)
         @update:model-value="(v: string) => L.setLang(1, v)"
       />
       <span class="flex-1" />
-      <span v-if="tr.result" class="text-[12px] text-(--muted)">
-        {{ fromSide === -1 ? `Detected ${langName(tr.result.from)}` : langName(tr.result.from) }} → {{ langName(tr.result.to) }}
-      </span>
+      <span class="text-[12px] text-(--muted)">Type in either language</span>
     </div>
 
-    <div v-if="tr.status === 'idle'" class="flex-1 flex flex-col items-center justify-center gap-2.5 text-center px-10">
-      <Tile icon="i-lucide-languages" tile="#1A73E8" :size="48" :icon-size="22" :radius="8" />
-      <div class="text-[15px] font-semibold">Translate between {{ langName(pair[0]) }} and {{ langName(pair[1]) }}</div>
-      <div class="text-[13px] text-(--muted) max-w-[380px] leading-normal">Type in either language and it goes into the other. Your two languages are remembered.</div>
-      <div class="flex items-center gap-1.5 mt-1 text-[12px] text-(--muted)">From root search, type <Keys :keys="['tr']" /> and your text</div>
-    </div>
+    <div class="flex-1 min-h-0 flex gap-3">
+      <!-- Your text -->
+      <div :class="[pane, 'bg-(--input-bg) focus-within:border-(--accent)']">
+        <div :class="paneHead">
+          {{ tr.result ? (detected ? `Detected ${langName(tr.result.from)}` : langName(tr.result.from)) : 'Your text' }}
+        </div>
+        <UTextarea
+          :ref="(c: any) => { L.els.tr = c?.textareaRef ?? null }"
+          v-model="s.trText"
+          placeholder="Type or paste text…"
+          variant="none"
+          autofocus
+          class="flex-1 min-h-0 w-full"
+          :ui="{ root: 'h-full', base: 'h-full px-3 py-2.5 resize-none bg-transparent text-[14.5px] leading-[1.6] text-(--fg) placeholder:text-(--faint) scroll-thin' }"
+        />
+        <div :class="paneFoot">
+          <span>{{ s.trText.length.toLocaleString() }} characters</span>
+          <span class="flex-1" />
+          <span class="flex items-center gap-1">New line <Keys :keys="['Shift', '↵']" size="sm" /></span>
+        </div>
+      </div>
 
-    <div v-else-if="tr.status === 'error'" class="flex-1 flex flex-col items-center justify-center gap-2.5 text-center px-10">
-      <Tile icon="i-lucide-wifi-off" :size="48" :icon-size="22" :radius="8" />
-      <div class="text-[15px] font-semibold">Can’t reach Google Translate</div>
-      <div class="text-[13px] text-(--muted) max-w-[380px] leading-normal">{{ tr.error }}</div>
-    </div>
-
-    <div v-else class="flex-1 min-h-0 overflow-y-auto py-4 px-[22px] box-border flex flex-col gap-3 scroll-thin">
-      <LauncherStreamShimmer v-if="tr.status === 'loading' && !tr.result" />
-      <template v-else-if="tr.result">
-        <div class="text-[11px] font-semibold tracking-[.04em] text-(--faint) uppercase">{{ langName(tr.result.to) }}</div>
-        <div class="text-[17px] leading-[1.55] whitespace-pre-wrap select-text text-pretty" :class="tr.status === 'loading' ? 'opacity-60' : ''">{{ tr.result.text }}</div>
-      </template>
+      <!-- Translation -->
+      <div :class="[pane, 'bg-(--surface)']">
+        <div :class="paneHead">
+          {{ tr.result ? langName(tr.result.to) : 'Translation' }}
+          <Spinner v-if="tr.status === 'loading'" :size="11" />
+        </div>
+        <div class="flex-1 min-h-0 overflow-y-auto px-3 py-2.5 scroll-thin">
+          <div v-if="tr.status === 'error'" class="text-[13px] text-(--err) leading-normal">{{ tr.error }}</div>
+          <div v-else-if="tr.result" class="text-[14.5px] leading-[1.6] whitespace-pre-wrap select-text" :class="tr.status === 'loading' ? 'opacity-60' : ''">{{ tr.result.text }}</div>
+          <div v-else-if="tr.status === 'idle'" class="text-[13px] text-(--faint) leading-normal">
+            {{ langName(pair[0]) }} goes into {{ langName(pair[1]) }}, and {{ langName(pair[1]) }} back into {{ langName(pair[0]) }}.
+          </div>
+        </div>
+        <div :class="paneFoot">
+          <UButton
+            v-if="tr.result"
+            icon="i-lucide-copy"
+            label="Copy"
+            color="neutral"
+            variant="ghost"
+            class="h-6 px-1.5 -ml-1.5 gap-1 text-[12px] text-(--muted) hover:text-(--fg)"
+            :ui="{ leadingIcon: 'size-3.5' }"
+            @click="L.runAction('tcopy')"
+          />
+          <span class="flex-1" />
+          <span v-if="tr.result" class="flex items-center gap-1">{{ s.target ? `Paste into ${s.target.app}` : 'Copy and close' }} <Keys :keys="['↵']" size="sm" /></span>
+        </div>
+      </div>
     </div>
   </div>
 </template>
