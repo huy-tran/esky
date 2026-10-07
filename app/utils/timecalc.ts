@@ -177,7 +177,7 @@ export function timeQuery(q: string): QuickCard | null {
     if (to) {
       let clock: [number, number] | null = null
       let fromPlace = 'here'
-      if ((lm = left.match(/^(.+?(?:am|pm|a|p|\d{2}|noon|midnight|midday))\s+(.+)$/)) && parseClock(lm[1]!) && zoneOf(lm[2]!)) {
+      if ((lm = left.match(/^(.*?(?:am|pm|a|p|\d{2}|noon|midnight|midday))\s+(.+)$/)) && parseClock(lm[1]!) && zoneOf(lm[2]!)) {
         clock = parseClock(lm[1]!)
         fromPlace = lm[2]!
       } else if (parseClock(left)) {
