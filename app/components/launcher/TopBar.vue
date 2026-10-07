@@ -42,7 +42,7 @@ const chip = computed(() => {
     aiResult: { icon: 'i-lucide-sparkles', text: 'Quick AI' },
     snippets: { icon: 'i-lucide-text-quote', text: L.settings.value.textExpansion ? 'Expansion on' : 'Expansion off' },
     quicklinks: { icon: 'i-lucide-link', text: `${L.qls.list.value.length} quicklinks` },
-    windows: { icon: 'i-lucide-app-window', text: 'Visual Studio Code' },
+    windows: { icon: 'i-lucide-app-window', text: s.target?.app ?? 'No window' },
     files: { icon: 'i-lucide-hard-drive', text: 'This PC' },
     store: { icon: 'i-lucide-store', text: `${L.installed.value.length} installed` },
     notes: { icon: 'i-lucide-sticky-note', text: `${L.notes.value.length} notes` },

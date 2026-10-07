@@ -506,6 +506,19 @@ async fn snippet_expand(keyword_chars: usize, text: String) -> Result<(), String
     .await?
 }
 
+// Window Layouts (see window.rs).
+
+#[cfg(windows)]
+mod window;
+
+/// Move or size the app Esky was opened from.
+#[cfg(windows)]
+#[tauri::command]
+async fn window_layout(app: AppHandle, layout: String, rect: Option<[f64; 4]>) -> Result<(), String> {
+    let target = app.state::<PasteTarget>().0.lock().unwrap().ok_or("Open Esky from another app first: there's no window to arrange")?;
+    blocking(move || window::apply(target, &layout, rect)).await?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -549,7 +562,8 @@ pub fn run() {
             clipboard_forget_image,
             copy_private,
             snippet_keywords,
-            snippet_expand
+            snippet_expand,
+            window_layout
         ])
         .setup(|app| {
             let window = app

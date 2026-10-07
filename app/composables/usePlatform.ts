@@ -194,3 +194,7 @@ export const captureTarget = (readSelection: boolean) => invokeDesktop<CapturedT
 export const clearTarget = () => isTauri() ? invokeDesktop<void>('clear_target') : Promise.resolve()
 /** Paste into that app. Hide the launcher first. */
 export const pasteToTarget = (text: string) => invokeDesktop<void>('paste_to_target', { text })
+
+/** Move or size the app Esky was opened from: a named layout, or a rectangle in percent of its screen. */
+export const windowLayout = (layout: 'maximize' | 'restore' | 'center' | 'next-display' | 'rect', rect?: [number, number, number, number]) =>
+  invokeDesktop<void>('window_layout', { layout, rect: rect ?? null })

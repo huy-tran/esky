@@ -26,7 +26,7 @@ import { useQuicklinks } from './useQuicklinks'
 import { useSnippets } from './useSnippets'
 import { clipDay, clipPreview, copyPrivate, useClipboard, type ClipEntry } from './useClipboard'
 import { comboOf, formatBytes, phSegs, trunc, type BodySeg } from '~/utils/text'
-import { captureTarget, clearTarget, copyText, ejectDrive, floatNote, hideWindow, isTauri, openSettings, openUrl, pasteToTarget, readClipboardText, recycleBinInfo, removableDrives, revealPath, showWindow, systemAction, type SystemAction } from './usePlatform'
+import { captureTarget, clearTarget, copyText, ejectDrive, floatNote, hideWindow, isTauri, openSettings, openUrl, pasteToTarget, readClipboardText, recycleBinInfo, removableDrives, revealPath, showWindow, systemAction, windowLayout, type SystemAction } from './usePlatform'
 import { persistRef } from './usePersist'
 import { useSettings } from './useSettings'
 
@@ -571,7 +571,7 @@ function createLauncher() {
 
   function screens(w: WinCmd): Detail['screens'] {
     const one = (name: string, r: number[] | null | undefined) => ({ name, win: r ? { l: r[0] + '%', t: (r[1]! * 0.9) + '%', w: r[2] + '%', h: (r[3]! * 0.9) + '%' } : null })
-    return w.display ? [one('Display 1', null), one('Display 2 · active after move', [0, 0, 100, 100])] : [one('Display 1 · 2560 × 1440', w.r)]
+    return w.display ? [one('This display', null), one('Next display', [0, 0, 100, 100])] : [one('Screen', w.r ?? (w.id === 'wCenter' ? [20, 15, 60, 70] : [14, 12, 52, 60]))]
   }
 
   function detail(x: SplitData | undefined): Detail | null {
@@ -589,7 +589,7 @@ function createLauncher() {
     }
     if (v === 'windows') {
       const n = x as WinCmd
-      return { head: { icon: n.icon, title: n.title, sub: 'Applies to the front window · Visual Studio Code' }, screens: screens(n), meta: [['Hotkey', (rowKeys(n.id) || []).join(' + ') || 'None'], ['Display', n.display ? 'Display 1 → Display 2' : 'Display 1']] }
+      return { head: { icon: n.icon, title: n.title, sub: `Applies to ${s.target?.app ?? 'the window you open Esky from'}` }, screens: screens(n), meta: [['Hotkey', (rowKeys(n.id) || []).join(' + ') || 'None'], ['Display', n.display ? 'Display 1 → Display 2' : 'Display 1']] }
     }
     if (v === 'files') {
       const n = x as FileEntry
@@ -905,7 +905,18 @@ function createLauncher() {
     }
   }
 
-  const applyWin = (w: WinCmd) => closeWith(w.display ? 'Moved Visual Studio Code to Display 2' : `Visual Studio Code · ${w.title}`)
+  /** Arrange the window Esky was opened from. */
+  function applyWin(w: WinCmd) {
+    const layout = w.display ? 'next-display' : w.id === 'wMax' ? 'maximize' : w.id === 'wRestore' ? 'restore' : w.id === 'wCenter' ? 'center' : 'rect'
+    if (!isTauri() || !s.target) {
+      return toast('info', 'Open Esky from the window to arrange', 'Press your Esky hotkey (or this layout’s hotkey) while that window is in front.')
+    }
+    const app = s.target.app
+    closeWith(`${app} · ${w.title}`, () => windowLayout(layout, w.r).catch((e) => {
+      s.open = true
+      toast('error', `Couldn’t arrange ${app}`, String(e))
+    }))
+  }
 
   /** Extensions ship with Esky, so installing just adds their commands to search. */
   function install(x: ExtensionDef) {

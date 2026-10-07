@@ -286,7 +286,7 @@ export type FootHintDef = [string, string[], string?]
 export const SPLIT_FOOT: Record<SplitView, [FootApp, FootHintDef[]]> = {
   snippets: [{ icon: 'i-lucide-text-quote', tile: '#0D9488', name: 'Snippets' }, [['Paste', ['↵'], 'split'], ['Copy', ['Ctrl', 'C'], 'sncopy'], ['Edit', ['Ctrl', 'E'], 'snedit']]],
   quicklinks: [{ icon: 'i-lucide-link', tile: '#2563EB', name: 'Quicklinks' }, [['Open', ['↵'], 'split'], ['Argument', ['Tab']], ['Edit', ['Ctrl', 'E'], 'qedit']]],
-  windows: [{ icon: 'i-lucide-app-window', tile: '#475569', name: 'Window Management' }, [['Apply', ['↵'], 'split'], ['Set Hotkey', ['Ctrl', 'Shift', 'H'], 'hotkey']]],
+  windows: [{ icon: 'i-lucide-app-window', tile: '#475569', name: 'Window Layouts' }, [['Apply', ['↵'], 'split'], ['Set Hotkey', ['Ctrl', 'Shift', 'H'], 'hotkey']]],
   files: [{ icon: 'i-lucide-file-search', tile: '#CA8A04', name: 'File Search' }, [['Open', ['↵'], 'split'], ['Open With', ['Ctrl', 'O'], 'fwith']]],
   notes: [{ icon: 'i-lucide-sticky-note', tile: '#CA8A04', name: 'Floating Notes' }, [['Edit', ['Tab']], ['New Note', ['Ctrl', 'N'], 'nnew'], ['Float', ['Ctrl', 'Shift', 'F'], 'nfloat']]],
   store: [{ icon: 'i-lucide-store', tile: 'var(--accent)', name: 'Store' }, []]

@@ -92,7 +92,7 @@ useKeepVisible(box, () => [s.splitSel, s.splitQuery, s.view])
           <div v-if="det.screens" class="flex gap-2.5">
             <div v-for="sc in det.screens" :key="sc.name" class="flex-1 min-w-0 max-w-[300px] aspect-[16/10] rounded-[6px] border border-(--bd) bg-(--surface) relative overflow-hidden">
               <div v-if="sc.win" class="absolute p-1 box-border transition-all duration-200" :style="{ left: sc.win.l, top: sc.win.t, width: sc.win.w, height: sc.win.h }">
-                <div class="size-full box-border rounded-[5px] bg-(--accent-soft) border-[1.5px] border-(--accent) grid place-items-center text-(--accent-fg) text-[11px] font-semibold">VS Code</div>
+                <div class="size-full box-border rounded-[5px] bg-(--accent-soft) border-[1.5px] border-(--accent) grid place-items-center text-(--accent-fg) text-[11px] font-semibold">{{ L.s.target?.app ?? 'Window' }}</div>
               </div>
               <div class="absolute inset-x-0 bottom-0 h-[10%] bg-(--tile) flex items-center px-2 text-[10.5px] text-(--muted)">{{ sc.name }}</div>
             </div>
