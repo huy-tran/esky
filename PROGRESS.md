@@ -87,3 +87,4 @@ Last updated: 6 Oct 2026 (Git, Password Generator, Script Commands dropped).
 - Extensions: add or change one in `app/extensions/registry.ts`; Settings and the Store pick it up automatically.
 - Dropped on purpose: Script Commands and Laragon (not used). Herd Mail was skipped: Herd has no deep link, API route or CLI command that opens its Mails window. Its mails are in `~\.config\herd\herd.sqlite` (`Mails` table) if an inbox in Esky is wanted later.
 - New component files sometimes don't register with a long-running `nuxt dev` ("Failed to resolve component"); restart the dev server.
+- Icons are bundled when the dev server starts, so a Lucide icon used for the first time shows blank until `nuxt dev` restarts. Production builds scan every file.

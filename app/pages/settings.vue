@@ -14,6 +14,7 @@ const colorMode = useColorMode()
 const TABS = [
   { value: 'general', label: 'General', icon: 'i-lucide-settings' },
   { value: 'shortcuts', label: 'Shortcuts', icon: 'i-lucide-keyboard' },
+  { value: 'quicklinks', label: 'Quicklinks', icon: 'i-lucide-link' },
   { value: 'extensions', label: 'Extensions', icon: 'i-lucide-puzzle' },
   { value: 'clipboard', label: 'Clipboard', icon: 'i-lucide-clipboard-list' },
   { value: 'ai', label: 'AI', icon: 'i-lucide-sparkles' },
@@ -259,6 +260,9 @@ const selectUi = { trailingIcon: 'size-3.5 text-(--muted)', content: 'bg-(--pop-
 
           <!-- Shortcuts -->
           <SettingsShortcutsPanel v-else-if="tab === 'shortcuts'" />
+
+          <!-- Quicklinks -->
+          <SettingsQuicklinksPanel v-else-if="tab === 'quicklinks'" />
 
           <!-- Extensions -->
           <div v-else-if="tab === 'extensions'" class="flex gap-4 items-start">

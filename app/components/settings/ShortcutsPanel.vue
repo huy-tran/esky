@@ -7,6 +7,7 @@ const hk = useHotkeys()
 const exts = useExtensions()
 const aliases = useAliases()
 const apps = useApps()
+const qls = useQuicklinks()
 onMounted(() => apps.load())
 
 const q = ref('')
@@ -14,6 +15,7 @@ const q = ref('')
 /** Commands, quicklinks and so on are always listed; apps only when searched for or already set up (there are 150+). */
 const groups = computed(() => {
   void apps.version.value
+  void qls.version.value
   const ql = q.value.trim().toLowerCase()
   const ids = Object.keys(ITEMS).filter((id) => {
     const it = ITEMS[id]!

@@ -242,12 +242,11 @@ export const SNIPS: Snippet[] = [
   { id: 'sn6', name: 'Soft-delete migration', kw: ';mig', folder: 'Code', last: 'Thu 2 Oct', mono: true, text: 'Schema::table(\'{cursor}\', function (Blueprint $table) {\n    $table->softDeletes();\n});' }
 ]
 
-export const QLINKS: Quicklink[] = [
+/** The quicklinks Esky starts with; yours are edited in Settings → Quicklinks (see useQuicklinks). */
+export const DEFAULT_QLINKS: Quicklink[] = [
   { id: 'q1', name: 'GitHub Search', kw: 'gh', url: 'https://github.com/search?q={query}', icon: 'i-lucide-github', tile: '#1E293B', arg: 'Query' },
   { id: 'q2', name: 'Laravel Docs', kw: 'ld', url: 'https://laravel.com/docs/12.x/{page}', icon: 'i-lucide-book-open', tile: '#E11D48', arg: 'Page' },
-  { id: 'q3', name: 'Forge Site', kw: 'site', url: 'https://forge.laravel.com/sites?search={site}', icon: 'i-lucide-hammer', tile: '#EA580C', arg: 'Site' },
-  { id: 'q4', name: 'Jira Issue', kw: 'jira', url: 'https://acme.atlassian.net/browse/{key}', icon: 'i-lucide-ticket', tile: '#2563EB', arg: 'Issue key' },
-  { id: 'q6', name: 'Acme Timesheets', kw: 'ts', url: 'https://time.acme.dev/week', icon: 'i-lucide-clock', tile: '#0D9488', arg: null }
+  { id: 'q3', name: 'Forge Site', kw: 'site', url: 'https://forge.laravel.com/sites?search={site}', icon: 'i-lucide-hammer', tile: '#EA580C', arg: 'Site' }
 ]
 
 export interface FileEntry {
@@ -322,7 +321,7 @@ export type FootHintDef = [string, string[], string?]
 
 export const SPLIT_FOOT: Record<SplitView, [FootApp, FootHintDef[]]> = {
   snippets: [{ icon: 'i-lucide-text-quote', tile: '#0D9488', name: 'Snippets' }, [['Paste', ['↵'], 'split'], ['Copy', ['Ctrl', 'C'], 'sncopy']]],
-  quicklinks: [{ icon: 'i-lucide-link', tile: '#2563EB', name: 'Quicklinks' }, [['Open', ['↵'], 'split'], ['Argument', ['Tab']]]],
+  quicklinks: [{ icon: 'i-lucide-link', tile: '#2563EB', name: 'Quicklinks' }, [['Open', ['↵'], 'split'], ['Argument', ['Tab']], ['Edit', ['Ctrl', 'E'], 'qedit']]],
   windows: [{ icon: 'i-lucide-app-window', tile: '#475569', name: 'Window Management' }, [['Apply', ['↵'], 'split'], ['Set Hotkey', ['Ctrl', 'Shift', 'H'], 'hotkey']]],
   files: [{ icon: 'i-lucide-file-search', tile: '#CA8A04', name: 'File Search' }, [['Open', ['↵'], 'split'], ['Open With', ['Ctrl', 'O'], 'fwith']]],
   notes: [{ icon: 'i-lucide-sticky-note', tile: '#CA8A04', name: 'Floating Notes' }, [['Edit', ['Tab']], ['New Note', ['Ctrl', 'N'], 'nnew'], ['Float', ['Ctrl', 'Shift', 'F'], 'nfloat']]],
@@ -331,7 +330,7 @@ export const SPLIT_FOOT: Record<SplitView, [FootApp, FootHintDef[]]> = {
 
 export const SPLIT_KEYS: Record<string, Record<string, string>> = {
   snippets: { 'ctrl+c': 'sncopy' },
-  quicklinks: { 'ctrl+shift+c': 'qcopy', 'ctrl+shift+a': 'alias', 'ctrl+shift+h': 'hotkey' },
+  quicklinks: { 'ctrl+e': 'qedit', 'ctrl+shift+c': 'qcopy', 'ctrl+shift+a': 'alias', 'ctrl+shift+h': 'hotkey' },
   windows: { 'ctrl+shift+h': 'hotkey' },
   files: { 'ctrl+o': 'fwith', 'ctrl+shift+c': 'fpath', 'ctrl+shift+e': 'freveal', 'ctrl+shift+a': 'fattach' },
   store: { 'ctrl+backspace': 'xuninstall' },
@@ -363,9 +362,6 @@ Object.assign(ITEMS, {
 // No default system-wide hotkeys: window layouts don't move windows yet, and the keys would be taken from other apps.
 WIN_CMDS.forEach((w) => {
   ITEMS[w.id] = { title: w.title, sub: 'Window Management', icon: w.icon, kind: 'win', win: w }
-})
-QLINKS.forEach((q) => {
-  ITEMS[q.id] = { title: q.name, sub: q.url, icon: q.icon, tile: q.tile, kind: 'link', qlink: q }
 })
 SNIPS.forEach((x) => {
   ITEMS[x.id] = { title: x.name, sub: x.kw, icon: 'i-lucide-text-quote', kind: 'snip', snip: x }

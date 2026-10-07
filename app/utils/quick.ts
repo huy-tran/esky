@@ -1,5 +1,5 @@
 // Quick tools for the root search: quicklink keywords, `g` web search, currency, units and maths.
-import { DIM, QLINKS, RATES, UNITS, type Quicklink } from '~/data/fixtures'
+import { DIM, RATES, UNITS, type Quicklink } from '~/data/fixtures'
 import { fmt } from './text'
 
 export interface QuickCard {
@@ -23,7 +23,8 @@ export interface QuickRow {
 
 export type QuickResult = { card: QuickCard } | { title: string, rows: QuickRow[] } | null
 
-export const resolveQ = (q: Quicklink, arg: string) => q.url.replace(/\{\w+\}/, arg)
+/** The quicklink's URL with `arg` in its {placeholder} (encoded for web addresses, as typed for paths). */
+export const resolveQ = (q: Quicklink, arg: string) => q.url.replace(/\{\w+\}/, /^https?:/i.test(q.url) ? encodeURIComponent(arg) : arg)
 
 /** Evaluates + - * / % ^ and parentheses without `eval`. */
 export function evaluate(src: string): number {
@@ -90,6 +91,8 @@ export interface QuickOptions {
   resolve?: (q: Quicklink, arg: string) => string
   /** Live currency rates (units per US dollar) and when they were last updated. Without them, built-in approximate rates are used. */
   rates?: { rates: Record<string, number>, updated: number } | null
+  /** Your quicklinks, so "gh some text" opens GitHub Search for it. */
+  quicklinks?: Quicklink[]
 }
 
 /** "3 hours ago" style age of a timestamp. */
@@ -107,7 +110,7 @@ export function quick(q: string, opts: QuickOptions = {}): QuickResult {
   let m: RegExpMatchArray | null
 
   const ws = q.trim().split(/\s+/)
-  const qq = QLINKS.find(x => x.arg && x.kw === (ws[0] || '').toLowerCase())
+  const qq = (opts.quicklinks ?? []).find(x => x.arg && x.kw === (ws[0] || '').toLowerCase())
   if (qq && ws.length > 1) {
     const arg = ws.slice(1).join(' ')
     const url = resolve(qq, arg)

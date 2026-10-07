@@ -1,7 +1,7 @@
 // Launcher state and behaviour.
 import {
   AI_CMDS, BRANCHES, CLIP_INIT, EMOJI, FAVS, GROUPS,
-  ITEMS, KIND_LABEL, NOTES_INIT, ONB_HK, ONB_TG, QLINKS, RECENT, SERVERS,
+  ITEMS, KIND_LABEL, NOTES_INIT, ONB_HK, ONB_TG, RECENT, SERVERS,
   SNIPS, SPLIT, SPLIT_FOOT, SPLIT_KEYS, SUGGEST, SYS_CONFIRM, USAGE_INIT, WIN_CMDS, FILES,
   type ChatMsg, type ClipItem, type Emoji, type FileEntry, type Note, type Quicklink,
   type Selection, type Server, type Snippet, type SplitView, type WinCmd
@@ -22,6 +22,7 @@ import { usePassword, wordlist } from './usePassword'
 import { useApps } from './useApps'
 import { useHotkeys } from './useHotkeys'
 import { useRates } from './useRates'
+import { useQuicklinks } from './useQuicklinks'
 import { comboOf, phSegs, trunc, type BodySeg } from '~/utils/text'
 import { copyText, floatNote, hideWindow, isTauri, openSettings, openUrl, readClipboardText, revealPath, showWindow } from './usePlatform'
 import { persistRef } from './usePersist'
@@ -250,7 +251,7 @@ function createLauncher() {
   /** Calculator preferences, and quicklinks resolved as above. */
   const quickOpts = () => {
     const p = exts.prefsFor('calc')
-    return { decimals: Number(p.decimals ?? 6), separators: p.separators !== false, resolve: resolveQ, rates: rates.rates.value }
+    return { decimals: Number(p.decimals ?? 6), separators: p.separators !== false, resolve: resolveQ, rates: rates.rates.value, quicklinks: qls.list.value }
   }
 
   /** Ask for missing setup instead of running a command that can't work. */
@@ -266,6 +267,7 @@ function createLauncher() {
 
   const apps = useApps()
   const rates = useRates()
+  const qls = useQuicklinks()
 
   const mk = (id: string, hl?: string): Row => {
     const it = ITEMS[id]!
@@ -424,7 +426,8 @@ function createLauncher() {
   }
 
   const searchModel = computed(() => {
-    void apps.version.value // app items in ITEMS changed
+    void apps.version.value // app and quicklink items in ITEMS changed
+    void qls.version.value
     const q = s.query.trim()
     const ql = q.toLowerCase()
     let card: (QuickCard & { run: () => void }) | null = null
@@ -526,7 +529,7 @@ function createLauncher() {
       (order || [...new Set(rows.map(r => r.g))]).map(t => ({ title: t.toUpperCase(), rows: rows.filter(r => r.g === t) })).filter(g => g.rows.length)
     let groups: { title: string, rows: SplitRow[] }[] = []
     if (v === 'snippets') groups = grp(SNIPS.filter(x => has(x.name, x.kw, x.text)).map(x => ({ key: x.id, title: x.name, sub: x.text.split('\n')[0]!, icon: 'i-lucide-text-quote', acc: x.kw, accMono: true, data: x, g: x.folder })), ['Email', 'General', 'Code'])
-    if (v === 'quicklinks') groups = grp(QLINKS.filter(x => has(x.name, x.kw, x.url)).map(x => ({ key: x.id, title: x.name, sub: x.url, mono: true, icon: x.icon, tile: x.tile, acc: x.kw, accMono: true, data: x, g: 'Quicklinks' })))
+    if (v === 'quicklinks') groups = grp(qls.list.value.filter(x => has(x.name, x.kw, x.url)).map(x => ({ key: x.id, title: x.name, sub: x.url, mono: true, icon: x.icon, tile: x.tile, acc: x.kw, accMono: true, data: x, g: 'Quicklinks' })))
     if (v === 'windows') groups = grp(WIN_CMDS.filter(x => has(x.title)).map(x => ({ key: x.id, title: x.title, sub: x.g, icon: x.icon, keys: rowKeys(x.id), data: x, g: x.g })))
     if (v === 'files') groups = grp(FILES.filter(x => has(x.name, x.dir)).map(x => ({ key: x.id, title: x.name, sub: x.dir, icon: x.icon, tile: x.tile, acc: x.mod.split(',')[0], data: x, g: q ? 'Files' : 'Recent files' })))
     if (v === 'store') {
@@ -569,7 +572,7 @@ function createLauncher() {
     if (v === 'quicklinks') {
       const n = x as Quicklink
       const val = s.args[n.id] ?? ''
-      return { head: { icon: n.icon, tile: n.tile, title: n.name, sub: n.arg ? resolveQ(n, val || '…') : n.url }, input: n.arg ? { label: n.arg, val, ph: `Type a ${n.arg.toLowerCase()}`, hint: `Tip: type “${n.kw} ${n.arg.toLowerCase()}” in root search to skip this step.`, on: setArg } : null, body: { segs: phSegs(n.url), mono: true }, meta: [['Keyword', n.kw, 1], ['Opens in', n.url.startsWith('http') ? 'Microsoft Edge' : 'File Explorer'], ['Alias', aliases.value[n.id] || 'None']] }
+      return { head: { icon: n.icon, tile: n.tile, title: n.name, sub: n.arg ? resolveQ(n, val || '…') : n.url }, input: n.arg ? { label: n.arg, val, ph: `Type a ${n.arg.toLowerCase()}`, hint: `Tip: type “${n.kw} ${n.arg.toLowerCase()}” in root search to skip this step.`, on: setArg } : null, body: { segs: phSegs(n.url), mono: true }, meta: [['Keyword', n.kw, 1], ['Opens in', n.url.startsWith('http') ? 'Your default browser' : 'File Explorer'], ['Alias', aliases.value[n.id] || 'None']] }
     }
     if (v === 'windows') {
       const n = x as WinCmd
@@ -639,7 +642,7 @@ function createLauncher() {
       const sx = x as (SplitData & { id: string }) | undefined
       list = ({
         snippets: [O('split', 'Paste', 'i-lucide-clipboard-paste', ['↵']), O('sncopy', 'Copy', 'i-lucide-copy', ['Ctrl', 'C']), O('snexpand', s.expand ? 'Turn Off Text Expansion' : 'Turn On Text Expansion', 'i-lucide-keyboard', [])],
-        quicklinks: [O('split', 'Open', 'i-lucide-external-link', ['↵']), O('qcopy', 'Copy URL', 'i-lucide-copy', ['Ctrl', 'Shift', 'C']), O('alias', 'Add Alias', 'i-lucide-at-sign', ['Ctrl', 'Shift', 'A']), O('hotkey', 'Set Hotkey', 'i-lucide-keyboard', ['Ctrl', 'Shift', 'H'])],
+        quicklinks: [O('split', 'Open', 'i-lucide-external-link', ['↵']), O('qedit', 'Edit Quicklinks', 'i-lucide-pencil', ['Ctrl', 'E']), O('qcopy', 'Copy URL', 'i-lucide-copy', ['Ctrl', 'Shift', 'C']), O('alias', 'Add Alias', 'i-lucide-at-sign', ['Ctrl', 'Shift', 'A']), O('hotkey', 'Set Hotkey', 'i-lucide-keyboard', ['Ctrl', 'Shift', 'H'])],
         windows: [O('split', 'Apply Layout', 'i-lucide-app-window', ['↵']), O('hotkey', 'Set Hotkey', 'i-lucide-keyboard', ['Ctrl', 'Shift', 'H'])],
         files: [O('split', 'Open', 'i-lucide-corner-down-left', ['↵']), O('fwith', 'Open With Visual Studio Code', 'i-lucide-code-xml', ['Ctrl', 'O']), O('fpath', 'Copy Path', 'i-lucide-copy', ['Ctrl', 'Shift', 'C']), O('freveal', 'Reveal in Explorer', 'i-lucide-folder-search', ['Ctrl', 'Shift', 'E']), O('fattach', 'Attach to AI Chat', 'i-lucide-sparkles', ['Ctrl', 'Shift', 'A'])],
         store: sx && installed.value.includes(sx.id) ? [O('split', 'Configure', 'i-lucide-settings', ['↵']), O('xuninstall', 'Uninstall', 'i-lucide-trash-2', ['Ctrl', '⌫'], true)] : [O('split', 'Install', 'i-lucide-download', ['↵'])],
@@ -704,7 +707,7 @@ function createLauncher() {
     if (it.qlink) {
       const q = it.qlink
       if (!q.arg) return closeWith(`Opened ${q.url}`, () => openUrl(q.url))
-      go('quicklinks', { splitQuery: '', splitSel: QLINKS.indexOf(q) })
+      go('quicklinks', { splitQuery: '', splitSel: Math.max(0, qls.list.value.findIndex(x => x.id === q.id)) })
       return focusArg()
     }
     if (it.snip) return closeWith(`Pasted ${it.snip.kw} · ${it.snip.name}`)
@@ -1211,6 +1214,7 @@ function createLauncher() {
         s.expand = !s.expand
         toast('info', !s.expand ? 'Text expansion off' : 'Text expansion on', !s.expand ? 'Keywords no longer expand as you type.' : 'Type a keyword in any app to expand it.')
         break
+      case 'qedit': openSettings({ tab: 'quicklinks' }); break
       case 'qcopy': {
         const x = curSplit() as Quicklink | undefined
         if (x) {
@@ -1924,7 +1928,7 @@ function createLauncher() {
   return {
     s, els, ready, favs, disabled, usage, recent, aliases, hotkeys, installed, notes, clip, floatId, settings,
     searchModel, clipModel, forgeModel, splitModel, emojiModel, actionsModel, footer,
-    apps, herd, herdModel, openSite, git, gitModel, pw, copyPassword, dict, dictFlat, openDictionary,
+    apps, qls, herd, herdModel, openSite, git, gitModel, pw, copyPassword, dict, dictFlat, openDictionary,
     chats, chatGroups, openSavedChat, claude,
     curClip, curSplit, curEmoji, detail, aiCmd, rowKeys, comboOwner, aliasOwner,
     toast, focus, go, openWin, back, closeWith, activate, runAction, runSplit, openActions,
