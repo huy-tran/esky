@@ -2,7 +2,7 @@
 import {
   AI_CMDS, BRANCHES, EMOJI, FAVS, GROUPS,
   ITEMS, KIND_LABEL, NOTES_INIT, ONB_HK, RECENT, SERVERS,
-  SNIPS, SPLIT, SPLIT_FOOT, SPLIT_KEYS, SUGGEST, SYS_CONFIRM, USAGE_INIT, WIN_CMDS, FILES,
+  SPLIT, SPLIT_FOOT, SPLIT_KEYS, SUGGEST, SYS_CONFIRM, USAGE_INIT, WIN_CMDS, FILES,
   type ChatMsg, type Emoji, type FileEntry, type Note, type Quicklink,
   type Selection, type Server, type Snippet, type SplitView, type WinCmd
 } from '~/data/fixtures'
@@ -23,6 +23,7 @@ import { appName, useApps } from './useApps'
 import { useHotkeys } from './useHotkeys'
 import { useRates } from './useRates'
 import { useQuicklinks } from './useQuicklinks'
+import { useSnippets } from './useSnippets'
 import { clipDay, clipPreview, copyPrivate, useClipboard, type ClipEntry } from './useClipboard'
 import { comboOf, formatBytes, phSegs, trunc, type BodySeg } from '~/utils/text'
 import { captureTarget, clearTarget, copyText, ejectDrive, floatNote, hideWindow, isTauri, openSettings, openUrl, pasteToTarget, readClipboardText, recycleBinInfo, removableDrives, revealPath, showWindow, systemAction, type SystemAction } from './usePlatform'
@@ -139,7 +140,6 @@ function createLauncher() {
     splitQuery: '',
     splitSel: 0,
     args: {} as Record<string, string>,
-    expand: true,
     hk: null as null | { id: string, title: string, combo: string[] | null, conflict: string, ownerId?: string | null, reserved?: boolean, note?: string },
     al: null as null | { id: string, title: string, value: string },
     confirm: null as null | { title: string, desc: string, label: string, run: () => void },
@@ -278,6 +278,7 @@ function createLauncher() {
   const apps = useApps()
   const rates = useRates()
   const qls = useQuicklinks()
+  const sn = useSnippets()
 
   const mk = (id: string, hl?: string): Row => {
     const it = ITEMS[id]!
@@ -439,6 +440,7 @@ function createLauncher() {
   const searchModel = computed(() => {
     void apps.version.value // app and quicklink items in ITEMS changed
     void qls.version.value
+    void sn.version.value
     const q = s.query.trim()
     const ql = q.toLowerCase()
     let card: (QuickCard & { run: () => void }) | null = null
@@ -539,7 +541,7 @@ function createLauncher() {
     const grp = (rows: SplitRow[], order?: string[]) =>
       (order || [...new Set(rows.map(r => r.g))]).map(t => ({ title: t.toUpperCase(), rows: rows.filter(r => r.g === t) })).filter(g => g.rows.length)
     let groups: { title: string, rows: SplitRow[] }[] = []
-    if (v === 'snippets') groups = grp(SNIPS.filter(x => has(x.name, x.kw, x.text)).map(x => ({ key: x.id, title: x.name, sub: x.text.split('\n')[0]!, icon: 'i-lucide-text-quote', acc: x.kw, accMono: true, data: x, g: x.folder })), ['Email', 'General', 'Code'])
+    if (v === 'snippets') groups = grp(sn.list.value.filter(x => has(x.name, x.kw, x.text)).map(x => ({ key: x.id, title: x.name, sub: x.text.split('\n')[0]!, icon: 'i-lucide-text-quote', acc: x.kw, accMono: true, data: x, g: x.folder })), sn.folders.value)
     if (v === 'quicklinks') groups = grp(qls.list.value.filter(x => has(x.name, x.kw, x.url)).map(x => ({ key: x.id, title: x.name, sub: x.url, mono: true, icon: x.icon, tile: x.tile, acc: x.kw, accMono: true, data: x, g: 'Quicklinks' })))
     if (v === 'windows') groups = grp(WIN_CMDS.filter(x => has(x.title)).map(x => ({ key: x.id, title: x.title, sub: x.g, icon: x.icon, keys: rowKeys(x.id), data: x, g: x.g })))
     if (v === 'files') groups = grp(FILES.filter(x => has(x.name, x.dir)).map(x => ({ key: x.id, title: x.name, sub: x.dir, icon: x.icon, tile: x.tile, acc: x.mod.split(',')[0], data: x, g: q ? 'Files' : 'Recent files' })))
@@ -578,7 +580,7 @@ function createLauncher() {
     const setArg = (val: string) => { s.args = { ...s.args, [x.id]: val } }
     if (v === 'snippets') {
       const n = x as Snippet
-      return { head: { icon: 'i-lucide-text-quote', title: n.name, sub: s.expand ? `Type ${n.kw} in any app to expand` : 'Text expansion is off' }, body: { segs: phSegs(n.text), mono: n.mono }, meta: [['Keyword', n.kw, 1], ['Folder', n.folder], ['Placeholders', (n.text.match(/\{\w+\}/g) || []).join(', ') || 'None'], ['Last used', n.last]] }
+      return { head: { icon: 'i-lucide-text-quote', title: n.name, sub: !n.kw ? 'No keyword: paste it from Esky' : settings.value.textExpansion ? `Type ${n.kw} in any app to expand` : 'Text expansion is off' }, body: { segs: phSegs(n.text), mono: n.mono }, meta: [['Keyword', n.kw, 1], ['Folder', n.folder], ['Placeholders', (n.text.match(/\{\w+\}/g) || []).join(', ') || 'None'], ['Last used', n.lastUsed ? new Date(n.lastUsed).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Never']] }
     }
     if (v === 'quicklinks') {
       const n = x as Quicklink
@@ -652,7 +654,7 @@ function createLauncher() {
       target = any ? (any.name || any.title || (any.body != null ? (any.body.split('\n')[0] || 'Untitled note') : any.n)) : ''
       const sx = x as (SplitData & { id: string }) | undefined
       list = ({
-        snippets: [O('split', 'Paste', 'i-lucide-clipboard-paste', ['↵']), O('sncopy', 'Copy', 'i-lucide-copy', ['Ctrl', 'C']), O('snexpand', s.expand ? 'Turn Off Text Expansion' : 'Turn On Text Expansion', 'i-lucide-keyboard', [])],
+        snippets: [O('split', 'Paste', 'i-lucide-clipboard-paste', ['↵']), O('sncopy', 'Copy', 'i-lucide-copy', ['Ctrl', 'C']), O('snexpand', settings.value.textExpansion ? 'Turn Off Text Expansion' : 'Turn On Text Expansion', 'i-lucide-keyboard', []), O('snedit', 'Edit Snippets', 'i-lucide-pencil', ['Ctrl', 'E'])],
         quicklinks: [O('split', 'Open', 'i-lucide-external-link', ['↵']), O('qedit', 'Edit Quicklinks', 'i-lucide-pencil', ['Ctrl', 'E']), O('qcopy', 'Copy URL', 'i-lucide-copy', ['Ctrl', 'Shift', 'C']), O('alias', 'Add Alias', 'i-lucide-at-sign', ['Ctrl', 'Shift', 'A']), O('hotkey', 'Set Hotkey', 'i-lucide-keyboard', ['Ctrl', 'Shift', 'H'])],
         windows: [O('split', 'Apply Layout', 'i-lucide-app-window', ['↵']), O('hotkey', 'Set Hotkey', 'i-lucide-keyboard', ['Ctrl', 'Shift', 'H'])],
         files: [O('split', 'Open', 'i-lucide-corner-down-left', ['↵']), O('fwith', 'Open With Visual Studio Code', 'i-lucide-code-xml', ['Ctrl', 'O']), O('fpath', 'Copy Path', 'i-lucide-copy', ['Ctrl', 'Shift', 'C']), O('freveal', 'Reveal in Explorer', 'i-lucide-folder-search', ['Ctrl', 'Shift', 'E']), O('fattach', 'Attach to AI Chat', 'i-lucide-sparkles', ['Ctrl', 'Shift', 'A'])],
@@ -743,7 +745,24 @@ function createLauncher() {
     return out
   }
 
+  /** Typed-keyword expansion (desktop app): Rust watches for the keywords and asks for the text. */
+  async function startExpansion() {
+    if (!isTauri()) return
+    const { invoke } = await import('@tauri-apps/api/core')
+    const { listen } = await import('@tauri-apps/api/event')
+    await sn.ready
+    watch(() => settings.value.textExpansion ? sn.list.value.map(x => x.kw).filter(Boolean) : [], keywords => invoke('snippet_keywords', { keywords }), { immediate: true, deep: true })
+    await listen<string>('snippet://typed', async (e) => {
+      const n = sn.list.value.find(x => x.kw === e.payload)
+      if (!n) return
+      sn.used(n.id)
+      invoke('snippet_expand', { keywordChars: [...e.payload].length, text: await snippetText(n.text) })
+        .catch(err => toast('error', `Couldn’t expand ${n.kw}`, String(err)))
+    })
+  }
+
   async function pasteSnippet(n: Snippet) {
+    sn.used(n.id)
     pasteText(await snippetText(n.text), n.name)
   }
 
@@ -1352,10 +1371,13 @@ function createLauncher() {
         }
         break
       }
-      case 'snexpand':
-        s.expand = !s.expand
-        toast('info', !s.expand ? 'Text expansion off' : 'Text expansion on', !s.expand ? 'Keywords no longer expand as you type.' : 'Type a keyword in any app to expand it.')
+      case 'snexpand': {
+        const on = !settings.value.textExpansion
+        settings.value = { ...settings.value, textExpansion: on }
+        toast('info', on ? 'Text expansion on' : 'Text expansion off', on ? 'Type a keyword in any app to expand it.' : 'Keywords no longer expand as you type.')
         break
+      }
+      case 'snedit': openSettings({ tab: 'snippets' }); break
       case 'qedit': openSettings({ tab: 'quicklinks' }); break
       case 'qcopy': {
         const x = curSplit() as Quicklink | undefined
@@ -2063,6 +2085,7 @@ function createLauncher() {
     apps.load()
     rates.refresh()
     clipboard.start()
+    startExpansion()
     // Herd sites also appear in root search.
     if (exts.isActive('herd')) loadHerd()
     // A different Herd config folder (set in Settings) means a different site list.
@@ -2074,7 +2097,7 @@ function createLauncher() {
   return {
     s, els, ready, favs, disabled, usage, recent, aliases, hotkeys, installed, notes, clip, floatId, settings,
     searchModel, clipModel, forgeModel, splitModel, emojiModel, actionsModel, footer,
-    apps, qls, herd, herdModel, openSite, git, gitModel, pw, copyPassword, dict, dictFlat, openDictionary,
+    apps, qls, sn, herd, herdModel, openSite, git, gitModel, pw, copyPassword, dict, dictFlat, openDictionary,
     chats, chatGroups, openSavedChat, claude,
     curClip, curSplit, curEmoji, detail, aiCmd, rowKeys, comboOwner, aliasOwner,
     toast, focus, go, openWin, openFromHotkey, openFromTray, activateFromHotkey, back, closeWith, activate, runAction, runSplit, openActions,

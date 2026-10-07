@@ -8,6 +8,7 @@ const exts = useExtensions()
 const aliases = useAliases()
 const apps = useApps()
 const qls = useQuicklinks()
+const sn = useSnippets()
 onMounted(() => apps.load())
 
 const q = ref('')
@@ -16,6 +17,7 @@ const q = ref('')
 const groups = computed(() => {
   void apps.version.value
   void qls.version.value
+  void sn.version.value
   const ql = q.value.trim().toLowerCase()
   const ids = Object.keys(ITEMS).filter((id) => {
     const it = ITEMS[id]!

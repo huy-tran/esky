@@ -482,6 +482,30 @@ fn copy_private(text: String) {
     clipboard::copy_private(&text);
 }
 
+// Snippet expansion (see expand.rs).
+
+#[cfg(windows)]
+mod expand;
+
+/// The snippet keywords to expand as you type; an empty list turns expansion off.
+#[cfg(windows)]
+#[tauri::command]
+fn snippet_keywords(keywords: Vec<String>) {
+    expand::set_keywords(keywords);
+}
+
+/// Replace the keyword just typed (`keyword_chars` characters) with the snippet text.
+#[cfg(windows)]
+#[tauri::command]
+async fn snippet_expand(keyword_chars: usize, text: String) -> Result<(), String> {
+    blocking(move || {
+        expand::erase(keyword_chars);
+        std::thread::sleep(std::time::Duration::from_millis(30));
+        input::paste(expand::foreground(), &text)
+    })
+    .await?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -523,7 +547,9 @@ pub fn run() {
             clipboard_copy,
             clipboard_paste,
             clipboard_forget_image,
-            copy_private
+            copy_private,
+            snippet_keywords,
+            snippet_expand
         ])
         .setup(|app| {
             let window = app
@@ -533,6 +559,9 @@ pub fn run() {
             // Clipboard History records once the page turns it on (it knows the setting).
             #[cfg(windows)]
             clipboard::start(app.handle().clone(), clipboard_images(app.handle())?);
+            // Snippet expansion waits for keywords from the page (none until it sends them).
+            #[cfg(windows)]
+            expand::start(app.handle().clone());
 
             // Mica on Windows 11, Acrylic on Windows 10. The page falls back to --win-bg.
             #[cfg(target_os = "windows")]

@@ -40,7 +40,7 @@ const chip = computed(() => {
     forgeDetail: { icon: 'i-lucide-hammer', text: 'Laravel Forge' },
     deploy: { icon: 'i-lucide-hammer', text: 'Laravel Forge' },
     aiResult: { icon: 'i-lucide-sparkles', text: 'Quick AI' },
-    snippets: { icon: 'i-lucide-text-quote', text: s.expand ? 'Expansion on' : 'Expansion off' },
+    snippets: { icon: 'i-lucide-text-quote', text: L.settings.value.textExpansion ? 'Expansion on' : 'Expansion off' },
     quicklinks: { icon: 'i-lucide-link', text: `${L.qls.list.value.length} quicklinks` },
     windows: { icon: 'i-lucide-app-window', text: 'Visual Studio Code' },
     files: { icon: 'i-lucide-hard-drive', text: 'This PC' },

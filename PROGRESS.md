@@ -33,6 +33,7 @@ Last updated: 6 Oct 2026 (Git, Password Generator, Script Commands dropped).
 - [x] System commands: Lock, Sleep, Restart, Shut Down, Sign Out (shutdown.exe), Empty Recycle Bin (with its real size), Eject All Drives; Do Not Disturb opens notification settings (no public API). Rust `system.rs`
 - [x] Paste into the app Esky was opened from (Snippets, Emoji, Quick AI) and read its selected text for Quick AI: Esky sends Ctrl C / Ctrl V to that window and restores the clipboard afterwards. Rust `input.rs`; the window is remembered in Rust, so the page can only paste into the app you came from
 - [x] Clipboard History: text, links, colours, images (saved as PNG in the app data folder) and files; paste back into the app you came from; pin, delete, clear; Settings → Clipboard (on/off, length, age, password managers via Windows' "don't record" clipboard flag, ignored apps). Rust `clipboard.rs` polls the clipboard change counter
+- [x] Snippets you edit (Settings → Snippets) with {date}, {time}, {clipboard} and {cursor}; paste into the app you came from; typed-keyword expansion in any app (Rust `expand.rs`: a low-level keyboard hook keeps only the last 32 characters in memory, ignores Esky's own windows and injected keys)
 - [x] Git → Uncommitted Changes: repos with uncommitted changes or unpushed commits in the folders set in Settings → Extensions → Git (default `~\Herd`, `~\Frontend`); changed files, branch, open in editor or Windows Terminal. Rust `git_status` / `open_terminal` in the app, `server/api/git/status.get.ts` in the browser
 - [x] Password Generator: password or passphrase with Bitwarden's options, defaults and rules (EFF long word list); options are saved, generated values never are
 
@@ -48,10 +49,8 @@ Last updated: 6 Oct 2026 (Git, Password Generator, Script Commands dropped).
 |---|---|
 | Search Files | 8 sample files; Open / Open With do nothing; Reveal and Copy Path use fake paths |
 | GitHub, Jira, Sentry extensions | Commands only open a web page; the saved tokens are never used |
-| Snippets | 7 samples you can't edit; Paste does nothing; no keyword expansion in other apps (Copy works) |
 | Window layouts | Applying a layout moves nothing |
 | Laravel Forge | 6 sample servers; Deploy is a timed fake; SSH does nothing; the API token is never used |
-| Snippets typed-keyword expansion | Not built yet (see Snippets) |
 | Colour Picker, Media Controls, Docker | Commands are fakes (preference forms work) |
 | Settings → AI | The API-key backend isn't connected |
 

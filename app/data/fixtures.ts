@@ -27,7 +27,8 @@ export interface Snippet {
   name: string
   kw: string
   folder: string
-  last: string
+  /** When it was last pasted or expanded (ms). */
+  lastUsed?: number
   text: string
   mono?: boolean
 }
@@ -198,14 +199,11 @@ export const WIN_CMDS: WinCmd[] = [
   { id: 'wNext', title: 'Move to Next Display', icon: 'i-lucide-monitor-up', g: 'Displays', display: true, keys: ['Ctrl', 'Alt', 'Shift', '→'] }
 ]
 
-export const SNIPS: Snippet[] = [
-  { id: 'sn1', name: 'Email signature', kw: ';sig', folder: 'Email', last: 'Today, 09:02', text: 'Cheers,\nAlex Morgan\nAcme Studio · acme.dev' },
-  { id: 'sn3', name: 'Client thanks', kw: ';thx', folder: 'Email', last: 'Yesterday, 16:22', text: 'Hi {cursor},\n\nThanks for getting back to me. The updated quote is below:\n{clipboard}\n\nLet me know if you have any questions.' },
-  { id: 'sn7', name: 'Quote follow-up', kw: ';fu', folder: 'Email', last: 'Wed 1 Oct', text: 'Hi {cursor}, just following up on the quote I sent on {date}. Happy to jump on a quick call if that helps.' },
-  { id: 'sn2', name: 'Office address', kw: ';addr', folder: 'General', last: 'Mon 29 Sep', text: 'Level 2, 88 Example Street\nSydney NSW 2000' },
-  { id: 'sn4', name: 'Today\'s date', kw: ';dd', folder: 'General', last: 'Today, 08:47', text: '{date}' },
-  { id: 'sn5', name: 'Meeting link', kw: ';meet', folder: 'General', last: 'Fri 3 Oct', text: 'https://meet.acme.dev/alex' },
-  { id: 'sn6', name: 'Soft-delete migration', kw: ';mig', folder: 'Code', last: 'Thu 2 Oct', mono: true, text: 'Schema::table(\'{cursor}\', function (Blueprint $table) {\n    $table->softDeletes();\n});' }
+/** The snippets Esky starts with; yours are edited in Settings → Snippets (see useSnippets). */
+export const DEFAULT_SNIPS: Snippet[] = [
+  { id: 'sn_date', name: 'Today’s date', kw: ';date', folder: 'General', text: '{date}' },
+  { id: 'sn_time', name: 'Current time', kw: ';time', folder: 'General', text: '{time}' },
+  { id: 'sn_shrug', name: 'Shrug', kw: ';shrug', folder: 'General', text: '¯\\_(ツ)_/¯' }
 ]
 
 /** The quicklinks Esky starts with; yours are edited in Settings → Quicklinks (see useQuicklinks). */
@@ -286,7 +284,7 @@ export interface FootApp { icon: string, tile: string, name: string }
 export type FootHintDef = [string, string[], string?]
 
 export const SPLIT_FOOT: Record<SplitView, [FootApp, FootHintDef[]]> = {
-  snippets: [{ icon: 'i-lucide-text-quote', tile: '#0D9488', name: 'Snippets' }, [['Paste', ['↵'], 'split'], ['Copy', ['Ctrl', 'C'], 'sncopy']]],
+  snippets: [{ icon: 'i-lucide-text-quote', tile: '#0D9488', name: 'Snippets' }, [['Paste', ['↵'], 'split'], ['Copy', ['Ctrl', 'C'], 'sncopy'], ['Edit', ['Ctrl', 'E'], 'snedit']]],
   quicklinks: [{ icon: 'i-lucide-link', tile: '#2563EB', name: 'Quicklinks' }, [['Open', ['↵'], 'split'], ['Argument', ['Tab']], ['Edit', ['Ctrl', 'E'], 'qedit']]],
   windows: [{ icon: 'i-lucide-app-window', tile: '#475569', name: 'Window Management' }, [['Apply', ['↵'], 'split'], ['Set Hotkey', ['Ctrl', 'Shift', 'H'], 'hotkey']]],
   files: [{ icon: 'i-lucide-file-search', tile: '#CA8A04', name: 'File Search' }, [['Open', ['↵'], 'split'], ['Open With', ['Ctrl', 'O'], 'fwith']]],
@@ -295,7 +293,7 @@ export const SPLIT_FOOT: Record<SplitView, [FootApp, FootHintDef[]]> = {
 }
 
 export const SPLIT_KEYS: Record<string, Record<string, string>> = {
-  snippets: { 'ctrl+c': 'sncopy' },
+  snippets: { 'ctrl+c': 'sncopy', 'ctrl+e': 'snedit' },
   quicklinks: { 'ctrl+e': 'qedit', 'ctrl+shift+c': 'qcopy', 'ctrl+shift+a': 'alias', 'ctrl+shift+h': 'hotkey' },
   windows: { 'ctrl+shift+h': 'hotkey' },
   files: { 'ctrl+o': 'fwith', 'ctrl+shift+c': 'fpath', 'ctrl+shift+e': 'freveal', 'ctrl+shift+a': 'fattach' },
@@ -328,9 +326,6 @@ Object.assign(ITEMS, {
 // No default system-wide hotkeys: window layouts don't move windows yet, and the keys would be taken from other apps.
 WIN_CMDS.forEach((w) => {
   ITEMS[w.id] = { title: w.title, sub: 'Window Management', icon: w.icon, kind: 'win', win: w }
-})
-SNIPS.forEach((x) => {
-  ITEMS[x.id] = { title: x.name, sub: x.kw, icon: 'i-lucide-text-quote', kind: 'snip', snip: x }
 })
 
 export const USAGE_INIT: Record<string, number> = {}
