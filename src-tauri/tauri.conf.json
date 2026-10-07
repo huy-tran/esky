@@ -47,6 +47,15 @@
       "nsis": {
         "installMode": "currentUser"
       }
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVGRUQ5OUNFMkFBMTM3NTIKUldSU042RXF6cG50N3lNSXEyTXRvZG9FNTFmN0lqSkIrQTZmblNBdzdTYjEzai9GcDZoQmZDNEcK",
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }

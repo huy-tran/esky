@@ -5,7 +5,7 @@ import type { SettingsState } from '~/composables/useSettings'
 import { ACCENT_IDS, accentLabel, accentVars } from '~/utils/accents'
 import { EXTENSIONS, extById, type ExtensionDef } from '~/extensions/registry'
 import { API_MODELS, type ClaudeStatus } from '~/utils/claude'
-import { checkForUpdate, type UpdateCheck } from '~/utils/updates'
+import { checkForUpdate, checkNative, installUpdate, type UpdateCheck } from '~/utils/updates'
 
 const { settings } = useSettings()
 const S = settings
@@ -187,8 +187,18 @@ const checkingUpdate = ref(false)
 const update = ref<UpdateCheck | null>(null)
 async function checkUpdates() {
   checkingUpdate.value = true
-  update.value = await checkForUpdate(updateRepo, sys.version)
+  update.value = isTauri() ? await checkNative() : await checkForUpdate(updateRepo, sys.version)
   checkingUpdate.value = false
+}
+const installing = ref(false)
+async function install() {
+  installing.value = true
+  try {
+    await installUpdate()
+  } catch (e) {
+    update.value = { state: 'error', message: String(e) }
+    installing.value = false
+  }
 }
 
 // Ctrl 1-6 jump between sections, Esc closes the window.
@@ -525,7 +535,15 @@ const selectUi = { trailingIcon: 'size-3.5 text-(--muted)', content: 'bg-(--pop-
                 <Spinner v-if="checkingUpdate" :size="13" />{{ checkingUpdate ? 'Checking…' : 'Check for updates' }}
               </UButton>
               <UButton
-                v-if="update?.state === 'available'"
+                v-if="update?.state === 'available' && update.installable"
+                icon="i-lucide-download"
+                :label="installing ? 'Installing…' : `Install ${update.version} and restart`"
+                :disabled="installing"
+                class="h-8 px-3 gap-1.5 rounded-[6px] bg-(--accent) hover:bg-(--accent) text-(--on-accent) text-[12.5px] font-semibold"
+                @click="install"
+              />
+              <UButton
+                v-else-if="update?.state === 'available'"
                 icon="i-lucide-download"
                 :label="`Download ${update.version}`"
                 class="h-8 px-3 gap-1.5 rounded-[6px] bg-(--accent) hover:bg-(--accent) text-(--on-accent) text-[12.5px] font-semibold"
@@ -533,8 +551,9 @@ const selectUi = { trailingIcon: 'size-3.5 text-(--muted)', content: 'bg-(--pop-
               />
             </div>
             <div class="text-[12.5px]" :class="update?.state === 'error' ? 'text-(--err)' : 'text-(--muted)'">
-              <template v-if="!updateRepo">Update checks are off in this build. Builds from the release workflow check GitHub for new versions.</template>
+              <template v-if="!updateRepo || update?.state === 'off'">Update checks are off in this build. Builds from the release workflow check GitHub for new versions and install them.</template>
               <template v-else-if="update?.state === 'latest'">You're on the latest version.</template>
+              <template v-else-if="update?.state === 'available' && update.installable">Esky {{ update.version }} is out. Esky also checks once a day and offers it in the launcher.</template>
               <template v-else-if="update?.state === 'available'">Esky {{ update.version }} is out. Download the installer and run it to update.</template>
               <template v-else-if="update?.state === 'error'">{{ update.message }}</template>
             </div>

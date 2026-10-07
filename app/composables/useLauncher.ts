@@ -2759,6 +2759,28 @@ function createLauncher() {
 
   watch(() => [s.view, s.open, s.actionsOpen, !s.al, s.ai?.needsInput], () => focus())
 
+  // Updates (release builds): check a minute after starting and then daily. A new version is
+  // offered the next time Esky opens (a notice in a hidden window would go unseen).
+  if (isTauri() && !import.meta.dev) {
+    let found = ''
+    let offered = ''
+    const checkUpdates = async () => {
+      const { checkNative } = await import('~/utils/updates')
+      const u = await checkNative()
+      if (u.state === 'available') found = u.version
+    }
+    setTimeout(checkUpdates, 60_000)
+    setInterval(checkUpdates, 24 * 3600_000)
+    watch(() => s.open, (o) => {
+      if (!o || !found || offered === found) return
+      offered = found
+      toast('info', `Esky ${found} is ready`, 'Install it now? Esky restarts in a few seconds.', {
+        label: 'Update',
+        run: () => import('~/utils/updates').then(m => m.installUpdate()).catch(e => toast('error', 'Couldn’t update', String(e)))
+      })
+    })
+  }
+
   watch(() => s.open, (o) => {
     if (o) {
       showWindow(settings.value.activeMonitor)

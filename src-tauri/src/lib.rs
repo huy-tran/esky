@@ -527,6 +527,22 @@ async fn snippet_erase(keyword_chars: usize) -> Result<(), String> {
     blocking(move || expand::erase(keyword_chars)).await
 }
 
+// Updates (see updates.rs).
+
+mod updates;
+
+/// The newer version on GitHub, or nothing when this is the latest.
+#[tauri::command]
+async fn update_check(app: AppHandle) -> Result<Option<updates::UpdateInfo>, String> {
+    updates::check(&app).await
+}
+
+/// Install the update found by update_check and restart.
+#[tauri::command]
+async fn update_install(app: AppHandle) -> Result<(), String> {
+    updates::install(&app).await
+}
+
 /// Write a settings backup to Downloads as "Esky settings <date>.json" and return its path.
 #[tauri::command]
 fn save_backup(app: AppHandle, json: String) -> Result<String, String> {
@@ -779,8 +795,10 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(ClaudeRuns::default())
         .manage(ApiRuns::default())
+        .manage(updates::Pending::default())
         .manage(KnownApps::default())
         .manage(PasteTarget::default())
         .invoke_handler(tauri::generate_handler![
@@ -817,6 +835,8 @@ pub fn run() {
             window_layout,
             windows_list,
             save_backup,
+            update_check,
+            update_install,
             exe_icons,
             window_focus,
             window_close,
