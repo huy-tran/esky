@@ -1,6 +1,7 @@
 // Quick tools for the root search: quicklink keywords, `g` web search, currency, units and maths.
 import { DIM, RATES, UNITS, type Quicklink } from '~/data/fixtures'
 import { fmt } from './text'
+import { timeQuery } from './timecalc'
 
 export interface QuickCard {
   label: string
