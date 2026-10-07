@@ -29,6 +29,8 @@ Last updated: 6 Oct 2026 (Git, Password Generator, Script Commands dropped).
 - [x] Running Claude Code from Rust (AI Chat)
 - [x] Applications: everything in the Start menu's All apps (desktop and Store apps) with real icons, launched through `shell:AppsFolder`; Run as Administrator, Reveal in Explorer and Copy Path for apps with a known .exe. Rust `apps_list` / `app_icons` / `app_launch` (src-tauri/src/apps.rs). Desktop app only
 - [x] Settings → Shortcuts: Esky's hotkey plus a hotkey and alias for every command and app (`app/composables/useHotkeys.ts` holds the rules for both windows)
+- [x] Quicklinks you edit (Settings → Quicklinks); live currency rates (open.er-api.com, cached 6 hours); "Check for updates" against GitHub releases (repo passed in by the release workflow); Store installs are instant; onboarding shows real counts and saves every choice
+- [x] System commands: Lock, Sleep, Restart, Shut Down, Sign Out (shutdown.exe), Empty Recycle Bin (with its real size), Eject All Drives; Do Not Disturb opens notification settings (no public API). Rust `system.rs`
 - [x] Git → Uncommitted Changes: repos with uncommitted changes or unpushed commits in the folders set in Settings → Extensions → Git (default `~\Herd`, `~\Frontend`); changed files, branch, open in editor or Windows Terminal. Rust `git_status` / `open_terminal` in the app, `server/api/git/status.get.ts` in the browser
 - [x] Password Generator: password or passphrase with Bitwarden's options, defaults and rules (EFF long word list); options are saved, generated values never are
 
@@ -43,22 +45,15 @@ Last updated: 6 Oct 2026 (Git, Password Generator, Script Commands dropped).
 | Area | What is fake |
 |---|---|
 | Search Files | 8 sample files; Open / Open With do nothing; Reveal and Copy Path use fake paths |
-| Quicklinks | Fixed list you can't add to; Jira Issue and Acme Timesheets point at sample sites |
 | GitHub, Jira, Sentry extensions | Commands only open a web page; the saved tokens are never used |
 | Clipboard History | 9 sample items; nothing is recorded; Paste does nothing; Clipboard settings tab is saved but unused |
 | Snippets | 7 samples you can't edit; Paste does nothing; no keyword expansion in other apps (Copy works) |
 | Window layouts | Applying a layout moves nothing |
-| System commands | Lock, Sleep, Restart, Shut down, Sign out, Empty Recycle Bin, Do Not Disturb, Eject only show a message (Eject names a made-up USB drive) |
 | Emoji | Paste does nothing (Copy works) |
 | Laravel Forge | 6 sample servers; Deploy is a timed fake; SSH does nothing; the API token is never used |
 | Quick AI input | Selected text in other apps is not read (you paste or type the text instead); ↵ copies the result rather than pasting it back |
-| Agent mode | Approval dialog is a demo; Claude cannot run commands from Esky |
-| Store | Fixed catalogue; "installing" is a 1 second animation (it does turn on the extension's commands) |
-| Currency | Hard-coded rates; "updated 2 hours ago" is fixed text |
 | Colour Picker, Media Controls, Docker | Commands are fakes (preference forms work) |
-| Settings → AI | API-key backend not connected; permission mode and allowed tools unused |
-| Settings → About | "Check for updates" always says up to date |
-| Onboarding | Only the hotkey and Start with Windows are used; import sources and other permissions are ignored, and the counts ("64 apps found") are made up |
+| Settings → AI | The API-key backend isn't connected |
 
 ## Next steps (in order)
 

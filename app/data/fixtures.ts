@@ -300,8 +300,7 @@ export const NOTES_INIT: Note[] = [
 export const SYS_CONFIRM: Record<string, [string, string, string, string]> = {
   restart: ['Restart your PC?', 'Open apps will be asked to close first.', 'Restart', 'Restarting…'],
   shutdown: ['Shut down your PC?', 'Open apps will be asked to close first.', 'Shut Down', 'Shutting down…'],
-  signout: ['Sign out of Windows?', 'Unsaved work in open apps may be lost.', 'Sign Out', 'Signing out…'],
-  emptyBin: ['Empty Recycle Bin?', '214 items (1.8 GB) will be permanently deleted.', 'Empty Recycle Bin', '']
+  signout: ['Sign out of Windows?', 'Unsaved work in open apps may be lost.', 'Sign Out', 'Signing out…']
 }
 
 export const ONB_HK: [string[], string][] = [[['Alt', 'Space'], 'Default. Works on every keyboard layout.'], [['Ctrl', 'Space'], 'Can clash with input method switching.'], [['Win', 'Alt', 'Space'], 'Leaves Alt Space free for other apps.']]

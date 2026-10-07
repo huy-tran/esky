@@ -23,8 +23,8 @@ import { useApps } from './useApps'
 import { useHotkeys } from './useHotkeys'
 import { useRates } from './useRates'
 import { useQuicklinks } from './useQuicklinks'
-import { comboOf, phSegs, trunc, type BodySeg } from '~/utils/text'
-import { copyText, floatNote, hideWindow, isTauri, openSettings, openUrl, readClipboardText, revealPath, showWindow } from './usePlatform'
+import { comboOf, formatBytes, phSegs, trunc, type BodySeg } from '~/utils/text'
+import { copyText, ejectDrive, floatNote, hideWindow, isTauri, openSettings, openUrl, readClipboardText, recycleBinInfo, removableDrives, revealPath, showWindow, systemAction, type SystemAction } from './usePlatform'
 import { persistRef } from './usePersist'
 import { useSettings } from './useSettings'
 
@@ -728,11 +728,13 @@ function createLauncher() {
       // No real integration yet (Colour Picker, Media Controls, Docker).
       return closeWith(`Opened ${it.sub} › ${it.title}`)
     }
+    if (id === 'emptyBin') return askEmptyBin()
     if (SYS_CONFIRM[id]) return Object.assign(s, { open: true, confirm: sysConfirm(id) })
-    if (id === 'sleep') return closeWith('Going to sleep…')
+    if (id === 'sleep') return closeWith('Going to sleep…', () => runSystem('sleep'))
+    if (id === 'lock') return closeWith('Screen locked', () => runSystem('lock'))
     // Windows has no public API for Do Not Disturb, so open the page where it's one click.
     if (id === 'dnd') return closeWith('Opened notification settings', () => openUrl('ms-settings:notifications'))
-    if (id === 'eject') return toast('success', 'Safe to remove', 'Kingston DataTraveler (E:) ejected')
+    if (id === 'eject') return ejectAll()
     if (it.go === 'clipboard') return go('clipboard', { clipQuery: '', clipSel: 0 })
     if (it.go === 'chat') return openChat('')
     if (it.go === 'forgeList') return go('forgeList', { forgeQuery: '', forgeSel: 0 })
@@ -751,7 +753,6 @@ function createLauncher() {
     if (it.go === 'settings') return openSettings()
     if (it.go === 'shortcuts') return openSettings({ tab: 'shortcuts' })
     if (it.ai) return runAi(it.ai)
-    if (id === 'lock') return closeWith('Screen locked')
     closeWith(`Opened ${it.title}`)
   }
 
@@ -906,9 +907,49 @@ function createLauncher() {
     toast('success', v ? 'Alias saved' : 'Alias removed', v ? `Type “${v}” to open ${al.title}` : al.title)
   }
 
+  /** Run a system action; if Windows refuses, Esky comes back and says why. */
+  function runSystem(action: SystemAction) {
+    systemAction(action).catch((e) => {
+      s.open = true
+      toast('error', 'Windows didn’t do that', String(e))
+    })
+  }
+
   function sysConfirm(id: string) {
     const [title, desc, label, msg] = SYS_CONFIRM[id]!
-    return { title, desc, label, run: () => msg ? closeWith(msg) : toast('success', 'Recycle Bin emptied', '1.8 GB freed') }
+    return { title, desc, label, run: () => closeWith(msg, () => runSystem(id as SystemAction)) }
+  }
+
+  /** Confirm with the Recycle Bin's real contents first. */
+  async function askEmptyBin() {
+    try {
+      const bin = await recycleBinInfo()
+      if (!bin.items) return toast('info', 'The Recycle Bin is already empty')
+      const what = `${bin.items.toLocaleString()} item${bin.items === 1 ? '' : 's'} (${formatBytes(bin.bytes)})`
+      s.confirm = { title: 'Empty Recycle Bin?', desc: `${what} will be permanently deleted.`, label: 'Empty Recycle Bin', run: () => {
+        systemAction('emptyBin')
+          .then(() => toast('success', 'Recycle Bin emptied', `${formatBytes(bin.bytes)} freed`))
+          .catch(e => toast('error', 'Couldn’t empty the Recycle Bin', String(e)))
+      } }
+    } catch (e) {
+      toast('error', 'Couldn’t read the Recycle Bin', String(e))
+    }
+  }
+
+  /** Eject every removable drive the way File Explorer does. */
+  async function ejectAll() {
+    try {
+      const drives = await removableDrives()
+      if (!drives.length) return toast('info', 'No removable drives', 'Nothing to eject.')
+      const results = await Promise.allSettled(drives.map(d => ejectDrive(d.letter)))
+      const name = (d: { letter: string, label: string }) => d.label ? `${d.label} (${d.letter})` : d.letter
+      const done = drives.filter((_, i) => results[i]!.status === 'fulfilled')
+      const failed = drives.filter((_, i) => results[i]!.status === 'rejected')
+      if (done.length) toast('success', 'Safe to remove', done.map(name).join(', '))
+      if (failed.length) toast('error', 'Couldn’t eject', `${failed.map(name).join(', ')}. Close any files open on it and try again.`)
+    } catch (e) {
+      toast('error', 'Couldn’t eject drives', String(e))
+    }
   }
 
   function cfOk() {

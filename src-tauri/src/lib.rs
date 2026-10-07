@@ -363,6 +363,43 @@ async fn app_launch(app: AppHandle, id: String, admin: bool) -> Result<(), Strin
     .await?
 }
 
+// System commands (see system.rs).
+
+#[cfg(windows)]
+mod system;
+
+/// Lock, sleep, restart, shut down, sign out or empty the Recycle Bin.
+#[cfg(windows)]
+#[tauri::command]
+async fn system_action(action: String) -> Result<(), String> {
+    blocking(move || match action.as_str() {
+        "lock" => system::lock(),
+        "sleep" => system::sleep(),
+        "restart" | "shutdown" | "signout" => system::power(&action),
+        "emptyBin" => system::empty_recycle_bin(),
+        _ => Err("Unknown action".into()),
+    })
+    .await?
+}
+
+#[cfg(windows)]
+#[tauri::command]
+async fn recycle_bin_info() -> Result<system::RecycleBin, String> {
+    blocking(system::recycle_bin).await?
+}
+
+#[cfg(windows)]
+#[tauri::command]
+async fn removable_drives() -> Result<Vec<system::Drive>, String> {
+    blocking(system::removable_drives).await
+}
+
+#[cfg(windows)]
+#[tauri::command]
+async fn eject_drive(letter: String) -> Result<(), String> {
+    blocking(move || system::eject(&letter)).await?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -391,7 +428,11 @@ pub fn run() {
             open_terminal,
             apps_list,
             app_icons,
-            app_launch
+            app_launch,
+            system_action,
+            recycle_bin_info,
+            removable_drives,
+            eject_drive
         ])
         .setup(|app| {
             let window = app

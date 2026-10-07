@@ -67,3 +67,15 @@ const ACCEL: Record<string, string> = { '←': 'ArrowLeft', '→': 'ArrowRight',
 
 /** Convert a display combo (['Ctrl','Alt','←']) to a Tauri accelerator ('Ctrl+Alt+ArrowLeft'). */
 export const toAccelerator = (keys: string[]) => keys.map(k => ACCEL[k] ?? k).join('+')
+
+/** 1536 -> "1.5 KB", 4035706914 -> "3.8 GB". */
+export function formatBytes(n: number) {
+  const units = ['bytes', 'KB', 'MB', 'GB', 'TB']
+  let i = 0
+  let v = n
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024
+    i++
+  }
+  return i === 0 ? `${n} bytes` : `${v.toFixed(v < 10 ? 1 : 0)} ${units[i]}`
+}

@@ -168,3 +168,18 @@ export async function setAutostart(on: boolean) {
   if (on === await isEnabled()) return
   await (on ? enable() : disable())
 }
+
+// System commands (desktop app; see src-tauri/src/system.rs).
+
+export type SystemAction = 'lock' | 'sleep' | 'restart' | 'shutdown' | 'signout' | 'emptyBin'
+
+async function invokeDesktop<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  if (!isTauri()) throw new Error('Only available in the desktop app')
+  const { invoke } = await import('@tauri-apps/api/core')
+  return invoke<T>(cmd, args)
+}
+
+export const systemAction = (action: SystemAction) => invokeDesktop<void>('system_action', { action })
+export const recycleBinInfo = () => invokeDesktop<{ items: number, bytes: number }>('recycle_bin_info')
+export const removableDrives = () => invokeDesktop<{ letter: string, label: string }[]>('removable_drives')
+export const ejectDrive = (letter: string) => invokeDesktop<void>('eject_drive', { letter })
