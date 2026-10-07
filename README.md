@@ -4,6 +4,8 @@ Keyboard launcher for Windows. Nuxt 4 + Nuxt UI v4 + Tailwind v4, packaged with 
 
 Press Alt Space anywhere to search apps, files, commands and open windows, and to calculate, convert currencies and units, and work out times across time zones.
 
+**[Try the demo in your browser](https://esky-ece.pages.dev/)** (press Alt Space to reopen the launcher if you hide it).
+
 ![Root search converting 3pm Sydney to London time](docs/screenshots/search.png)
 
 | | |
