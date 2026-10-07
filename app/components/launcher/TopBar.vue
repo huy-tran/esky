@@ -18,6 +18,7 @@ const top = computed((): Top | null => {
   if (v === 'forgeList') return { ph: 'Search servers…', get: () => s.forgeQuery, set: (q) => { s.forgeQuery = q; s.forgeSel = 0 } }
   if (v === 'herdList') return { ph: 'Search Herd sites…', get: () => s.herdQuery, set: (q) => { s.herdQuery = q; s.herdSel = 0 } }
   if (v === 'gitList') return { ph: 'Search repos or branches…', get: () => s.gitQuery, set: (q) => { s.gitQuery = q; s.gitSel = 0 } }
+  if (v === 'remoteList') return { ph: L.remote.source.value?.placeholder ?? 'Search…', get: () => s.remoteQuery, set: (q) => { s.remoteQuery = q; s.remoteSel = 0 } }
   if (v === 'dockerList') return { ph: `Search ${({ containers: 'containers', compose: 'Compose projects', images: 'images' } as const)[L.docker.kind.value]}…`, get: () => s.dockerQuery, set: (q) => { s.dockerQuery = q; s.dockerSel = 0 } }
   if (v === 'dictionary') return { ph: 'Type a word to define…', get: () => s.dictWord, set: (q) => { s.dictWord = q } }
   if (v === 'aiResult' && !s.ai?.needsInput) return { ph: 'Ask a follow-up, then Tab to continue in chat…', get: () => s.followUp, set: (q) => { s.followUp = q } }
@@ -52,6 +53,7 @@ const chip = computed(() => {
     herdList: { icon: 'i-lucide-feather', text: `Laravel Herd · ${L.herd.sites.value.length}` },
     gitList: { icon: 'i-lucide-git-branch', text: L.git.status.value === 'loading' ? 'Checking…' : `${L.gitModel.value.flat.length} of ${L.gitModel.value.checked} repos` },
     password: { icon: 'i-lucide-shield-check', text: 'Generated on this PC' },
+    remoteList: { icon: L.remote.source.value?.icon ?? 'i-lucide-link', text: L.remote.status.value === 'loading' ? 'Loading…' : `${L.remote.source.value?.title ?? ''} · ${L.remoteModel.value.length}` },
     dockerList: { icon: 'i-lucide-container', text: L.docker.status.value === 'loading' ? 'Loading…' : `Docker · ${L.dockerModel.value.length}` },
     dictionary: { icon: 'i-lucide-book-a', text: 'English · Wiktionary' }
   }

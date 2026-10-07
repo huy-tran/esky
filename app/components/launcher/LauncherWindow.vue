@@ -38,6 +38,7 @@ const toaster = {
         <LauncherHerdList v-else-if="s.view === 'herdList'" />
         <LauncherGitList v-else-if="s.view === 'gitList'" />
         <LauncherDockerList v-else-if="s.view === 'dockerList'" />
+        <LauncherRemoteList v-else-if="s.view === 'remoteList'" />
         <LauncherPasswordView v-else-if="s.view === 'password'" />
         <LauncherDictionaryView v-else-if="s.view === 'dictionary'" />
       </div>

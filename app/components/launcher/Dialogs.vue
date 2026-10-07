@@ -103,6 +103,40 @@ const primaryBtn = `${btn} pl-3 pr-2 bg-(--accent) hover:bg-(--accent) text-(--o
     </div>
   </LauncherDialog>
 
+  <!-- Jira: Log Work -->
+  <LauncherDialog :open="!!s.logWork" width-class="w-[440px]" title="Log work">
+    <div class="flex items-center gap-2.5">
+      <div class="size-8 rounded-[6px] bg-(--accent-soft) text-(--accent-fg) grid place-items-center"><UIcon name="i-lucide-timer" class="size-4" /></div>
+      <div class="min-w-0">
+        <div class="text-[14.5px] font-semibold">Log work</div>
+        <div class="text-[12px] text-(--muted) mt-0.5 truncate">{{ s.logWork?.title }}</div>
+      </div>
+    </div>
+    <template v-if="s.logWork">
+      <UInput
+        v-model="s.logWork.time"
+        placeholder="Time spent, e.g. 1h 30m"
+        spellcheck="false"
+        autocomplete="off"
+        variant="none"
+        autofocus
+        :ui="{ base: 'h-[38px] border border-(--bd) rounded-[6px] bg-(--input-bg) text-(--fg) px-3 text-[14px] font-mono focus-visible:outline-2 focus-visible:outline-(--accent)' }"
+      />
+      <UTextarea
+        v-model="s.logWork.comment"
+        placeholder="What you worked on (optional)"
+        :rows="3"
+        variant="none"
+        :ui="{ base: 'border border-(--bd) rounded-[6px] bg-(--input-bg) text-(--fg) px-3 py-2 text-[13px] resize-none focus-visible:outline-2 focus-visible:outline-(--accent)' }"
+      />
+      <div v-if="s.logWork.error" class="text-[12.5px] text-(--err)">{{ s.logWork.error }}</div>
+    </template>
+    <div class="flex gap-2 justify-end">
+      <UButton tabindex="-1" :class="secondary" @click="s.logWork = null">Cancel<Keys :keys="['Esc']" size="btn" /></UButton>
+      <UButton tabindex="-1" :class="primaryBtn" :disabled="s.logWork?.busy" @click="L.submitLogWork()"><Spinner v-if="s.logWork?.busy" :size="13" />Log<Keys :keys="['↵']" size="accent" /></UButton>
+    </div>
+  </LauncherDialog>
+
   <!-- Confirm (system commands, uninstall) -->
   <LauncherDialog :open="!!s.confirm" width-class="w-[418px]" :title="s.confirm?.title">
     <div class="flex items-start gap-2.5">

@@ -93,9 +93,9 @@ export const EXTENSIONS: ExtensionDef[] = [
     ver: '2.1.0',
     desc: 'Search repositories, review pull requests and check workflow runs.',
     commands: [
-      { id: 'repos', title: 'Search Repositories', url: p => p.org ? `https://github.com/orgs/${p.org}/repositories` : 'https://github.com/search?type=repositories' },
-      { id: 'prs', title: 'My Pull Requests', url: () => 'https://github.com/pulls' },
-      { id: 'runs', title: 'Workflow Runs', needs: ['org'], url: p => `https://github.com/${p.org}` }
+      { id: 'repos', title: 'Search Repositories' },
+      { id: 'prs', title: 'My Pull Requests' },
+      { id: 'runs', title: 'Workflow Runs', needs: ['org'] }
     ],
     prefs: [
       { key: 'token', type: 'secret', label: 'Personal access token', description: 'Fine-grained token with read access to the repos you want to search.' },
@@ -151,9 +151,9 @@ export const EXTENSIONS: ExtensionDef[] = [
     ver: '1.8.2',
     desc: 'Find issues, log work and move tickets between columns.',
     commands: [
-      { id: 'search', title: 'Search Issues', needs: ['site'], url: p => `https://${p.site}/issues/` },
-      { id: 'mine', title: 'My Open Issues', needs: ['site'], url: p => `https://${p.site}/issues/?jql=${encodeURIComponent('assignee = currentUser() AND resolution = Unresolved')}` },
-      { id: 'work', title: 'Log Work', needs: ['site'], url: p => `https://${p.site}/jira/your-work` }
+      { id: 'search', title: 'Search Issues', needs: ['site', 'email'] },
+      { id: 'mine', title: 'My Open Issues', needs: ['site', 'email'] },
+      { id: 'work', title: 'Log Work', needs: ['site', 'email'] }
     ],
     prefs: [
       { key: 'site', type: 'text', label: 'Site', required: true, placeholder: 'acme.atlassian.net' },
@@ -184,8 +184,8 @@ export const EXTENSIONS: ExtensionDef[] = [
     ver: '1.2.0',
     desc: 'See unresolved issues and recent releases for each project.',
     commands: [
-      { id: 'issues', title: 'Unresolved Issues', needs: ['org'], url: p => `https://${p.org}.sentry.io/issues/?query=is%3Aunresolved` },
-      { id: 'releases', title: 'Releases', needs: ['org'], url: p => `https://${p.org}.sentry.io/releases/` }
+      { id: 'issues', title: 'Unresolved Issues', needs: ['org'] },
+      { id: 'releases', title: 'Releases', needs: ['org'] }
     ],
     prefs: [
       { key: 'org', type: 'text', label: 'Organisation slug', required: true, placeholder: 'acme' },

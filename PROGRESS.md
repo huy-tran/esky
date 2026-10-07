@@ -38,6 +38,7 @@ Last updated: 6 Oct 2026 (Git, Password Generator, Script Commands dropped).
 - [x] File Search: an in-memory index of file names in the folders from Settings → Extensions → File Search (skips node_modules, vendor, .git and build folders; reindexed every 15 minutes), Windows' Recent files, text and thumbnail previews, Open, Open With, Reveal, Copy Path, attach to AI Chat; top matches in root search. Rust `files.rs`
 - [x] Media Controls (Windows media sessions: play/pause, next, previous; Spotify-only option), Docker (containers, Compose projects, images through the docker CLI: start, stop, restart, remove, logs in Windows Terminal), Colour Picker (click anywhere, crosshair, Esc cancels; Saved Colours in HEX/RGB/HSL). Rust `media.rs`, `docker.rs`, `colour.rs`
 - [x] Laravel Forge through its current organisation API (`/orgs/{org}/…`): servers, sites with branches, recent deployments, real deploys followed to the end with the log, SSH in Windows Terminal. Calls go through Rust `api.rs`, which adds the token from Credential Manager and only allows each service's own address
+- [x] GitHub (repositories with live search, your open pull requests, recent workflow runs), Jira (search issues or jump to a key, your open issues, log work with time and comment), Sentry (unresolved issues, releases) as lists inside Esky, through the same Rust client with your tokens
 - [x] Git → Uncommitted Changes: repos with uncommitted changes or unpushed commits in the folders set in Settings → Extensions → Git (default `~\Herd`, `~\Frontend`); changed files, branch, open in editor or Windows Terminal. Rust `git_status` / `open_terminal` in the app, `server/api/git/status.get.ts` in the browser
 - [x] Password Generator: password or passphrase with Bitwarden's options, defaults and rules (EFF long word list); options are saved, generated values never are
 
@@ -51,7 +52,6 @@ Last updated: 6 Oct 2026 (Git, Password Generator, Script Commands dropped).
 
 | Area | What is fake |
 |---|---|
-| GitHub, Jira, Sentry extensions | Commands only open a web page; the saved tokens are never used |
 | Settings → AI | The API-key backend isn't connected |
 
 ## Next steps (in order)

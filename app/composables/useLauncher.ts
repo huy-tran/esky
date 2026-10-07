@@ -26,6 +26,7 @@ import { useSnippets } from './useSnippets'
 import { fileKind, useFiles } from './useFiles'
 import { useDocker, type DockerKind } from './useDocker'
 import { useForge, type ForgeServer } from './useForge'
+import { jiraLogWork, remoteSources, useRemote } from './useRemote'
 import { formatColour, useColours, type ColourFormat, type SavedColour } from './useColours'
 import { clipDay, clipPreview, copyPrivate, useClipboard, type ClipEntry } from './useClipboard'
 import { comboOf, formatBytes, phSegs, trunc, type BodySeg } from '~/utils/text'
@@ -33,7 +34,7 @@ import { captureTarget, clearTarget, copyText, ejectDrive, floatNote, hideWindow
 import { persistRef } from './usePersist'
 import { useSettings } from './useSettings'
 
-export type View = 'search' | 'clipboard' | 'chat' | 'aiResult' | 'forgeList' | 'forgeDetail' | 'deploy' | 'emoji' | 'herdList' | 'gitList' | 'password' | 'dockerList' | 'dictionary' | SplitView
+export type View = 'search' | 'clipboard' | 'chat' | 'aiResult' | 'forgeList' | 'forgeDetail' | 'deploy' | 'emoji' | 'herdList' | 'gitList' | 'password' | 'dockerList' | 'remoteList' | 'dictionary' | SplitView
 
 /** Senses shown per part of speech; the rest are one Ctrl O away on Wiktionary. */
 export const DICT_SENSES = 8
@@ -155,6 +156,10 @@ function createLauncher() {
     herdSel: 0,
     gitQuery: '',
     dockerQuery: '',
+    remoteQuery: '',
+    remoteSel: 0,
+    /** Jira Log Work dialog. */
+    logWork: null as null | { key: string, title: string, time: string, comment: string, error: string, busy: boolean },
     dockerSel: 0,
     gitSel: 0,
     dictWord: '',
@@ -663,6 +668,17 @@ function createLauncher() {
       const r = curRepo()
       target = r ? r.name : 'Uncommitted Changes'
       list = [O('gopen', `Open in ${editorFor('git').name}`, 'i-lucide-code-xml', ['↵']), O('gterm', 'Open in Terminal', 'i-lucide-square-terminal', ['Ctrl', 'T']), O('greveal', 'Reveal in Explorer', 'i-lucide-folder-search', ['Ctrl', 'Shift', 'E']), O('gpath', 'Copy Path', 'i-lucide-copy', ['Ctrl', 'Shift', 'C']), O('greload', 'Check Again', 'i-lucide-refresh-cw', ['Ctrl', 'R'])]
+    } else if (s.view === 'remoteList') {
+      const r = curRemote()
+      const src = remote.source.value
+      target = r?.title ?? src?.title ?? ''
+      const jira = src?.ext === 'jira'
+      list = [
+        ...(src?.cmd === 'work' ? [O('rlog', 'Log Work', 'i-lucide-timer', ['↵']), O('ropen', 'Open in Browser', 'i-lucide-external-link', ['Ctrl', 'O'])] : [O('ropen', 'Open in Browser', 'i-lucide-external-link', ['↵'])]),
+        ...(jira && src?.cmd !== 'work' ? [O('rlog', 'Log Work', 'i-lucide-timer', ['Ctrl', 'L'])] : []),
+        O('rcopy', r?.copy && r.copy !== r.url ? (jira ? 'Copy Issue Key' : src?.cmd === 'repos' ? 'Copy Clone URL' : 'Copy ID') : 'Copy Link', 'i-lucide-copy', ['Ctrl', 'Shift', 'C']),
+        O('rreload', 'Refresh', 'i-lucide-refresh-cw', ['Ctrl', 'R'])
+      ]
     } else if (s.view === 'dockerList') {
       const r = curDocker()
       const k = docker.kind.value
@@ -807,6 +823,59 @@ function createLauncher() {
       .catch(e => toast('error', `Couldn’t ${label.toLowerCase()} ${r.title}`, String(e)))
   }
 
+  // ---------- GitHub, Jira, Sentry ----------
+
+  const remote = useRemote()
+  const sources = remoteSources()
+  const remoteModel = computed(() => {
+    const src = remote.source.value
+    const q = s.remoteQuery.trim().toLowerCase()
+    // Live sources search on the server; the others filter what's loaded.
+    if (!src || src.live || !q) return remote.rows.value
+    return remote.rows.value.filter(r => r.title.toLowerCase().includes(q) || r.sub.toLowerCase().includes(q))
+  })
+  const curRemote = () => remoteModel.value[Math.min(s.remoteSel, Math.max(0, remoteModel.value.length - 1))]
+
+  function openRemote(key: string) {
+    const src = sources[key]
+    if (!src) return
+    go('remoteList', { remoteQuery: '', remoteSel: 0 })
+    remote.load(src)
+  }
+
+  let remoteTimer: ReturnType<typeof setTimeout> | undefined
+  watch(() => s.remoteQuery, (q) => {
+    const src = remote.source.value
+    if (s.view !== 'remoteList' || !src?.live) return
+    clearTimeout(remoteTimer)
+    remoteTimer = setTimeout(() => {
+      remote.load(src, q)
+      s.remoteSel = 0
+    }, 350)
+  })
+
+  function openLogWork() {
+    const r = curRemote()
+    if (r && remote.source.value?.ext === 'jira') s.logWork = { key: r.id, title: r.title, time: '', comment: '', error: '', busy: false }
+  }
+
+  async function submitLogWork() {
+    const w = s.logWork
+    if (!w || w.busy) return
+    if (!/^\s*(\d+(\.\d+)?\s*[wdhm]\s*)+$/i.test(w.time)) {
+      s.logWork = { ...w, error: 'Use Jira’s format, e.g. 1h 30m, 45m or 2d.' }
+      return
+    }
+    s.logWork = { ...w, busy: true, error: '' }
+    try {
+      await jiraLogWork(w.key, w.time.trim(), w.comment)
+      s.logWork = null
+      toast('success', `Logged ${w.time.trim()} on ${w.key}`)
+    } catch (e) {
+      s.logWork = { ...w, busy: false, error: String(e) }
+    }
+  }
+
   // ---------- Colour Picker ----------
 
   const colours = useColours()
@@ -940,6 +1009,8 @@ function createLauncher() {
         return closeWith(`Opened ${ec.ext.name} › ${ec.cmd.title}`, () => openUrl(url))
       }
       if (ec.ext.id === 'docker') return openDocker(ec.cmd.id as DockerKind)
+      if (ec.ext.id === 'github' || ec.ext.id === 'sentry') return openRemote(ec.cmd.id)
+      if (ec.ext.id === 'jira') return openRemote(`jira:${ec.cmd.id}`)
       if (ec.ext.id === 'spotify') return controlMedia(ec.cmd.id === 'prev' ? 'previous' : ec.cmd.id as 'toggle' | 'next')
       if (ec.ext.id === 'colour') return ec.cmd.id === 'pick' ? pickColour() : go('colors', { splitQuery: '', splitSel: 0 })
       return closeWith(`Opened ${it.sub} › ${it.title}`)
@@ -1713,6 +1784,21 @@ function createLauncher() {
       case 'greload':
         loadGit().then(() => toast('success', 'Checked again', `${gitModel.value.flat.length} of ${gitModel.value.checked} repos need attention`))
         break
+      case 'ropen': {
+        const r = curRemote()
+        if (r) closeWith(`Opened ${r.title}`, () => openUrl(r.url))
+        break
+      }
+      case 'rlog': openLogWork(); break
+      case 'rcopy': {
+        const r = curRemote()
+        if (r) {
+          copyText(r.copy ?? r.url)
+          toast('success', 'Copied', r.copy ?? r.url)
+        }
+        break
+      }
+      case 'rreload': if (remote.source.value) remote.load(remote.source.value, s.remoteQuery); break
       case 'dprimary': {
         const r = curDocker()
         if (!r) break
@@ -1831,6 +1917,17 @@ function createLauncher() {
       } else if (k === 'Escape') {
         stop()
         s.confirm = null
+      }
+      return
+    }
+    if (s.logWork) {
+      // Typing in the Log Work dialog: Enter logs it (Shift Enter is a new line in the comment), Esc cancels.
+      if (k === 'Enter' && !sh) {
+        stop()
+        submitLogWork()
+      } else if (k === 'Escape') {
+        stop()
+        s.logWork = null
       }
       return
     }
@@ -2156,6 +2253,33 @@ function createLauncher() {
       }
       return
     }
+    if (v === 'remoteList') {
+      const n = remoteModel.value.length
+      const work = remote.source.value?.cmd === 'work'
+      if (k === 'ArrowDown' && n) {
+        stop()
+        s.remoteSel = (s.remoteSel + 1) % n
+      } else if (k === 'ArrowUp' && n) {
+        stop()
+        s.remoteSel = (s.remoteSel - 1 + n) % n
+      } else if (k === 'Enter' && n) {
+        stop()
+        runAction(work ? 'rlog' : 'ropen')
+      } else if (ctrl && !sh && kl === 'o' && n) {
+        stop()
+        runAction('ropen')
+      } else if (ctrl && !sh && kl === 'l' && n && remote.source.value?.ext === 'jira') {
+        stop()
+        runAction('rlog')
+      } else if (ctrl && sh && kl === 'c' && n) {
+        stop()
+        runAction('rcopy')
+      } else if (ctrl && kl === 'r') {
+        stop()
+        runAction('rreload')
+      }
+      return
+    }
     if (v === 'dockerList') {
       const n = dockerModel.value.length
       if (k === 'ArrowDown' && n) {
@@ -2272,6 +2396,11 @@ function createLauncher() {
     if (v === 'aiResult') return { app: { icon: 'i-lucide-sparkles', tile: 'var(--accent)', name: 'Quick AI' }, hints: [hint(s.target ? 'Paste' : 'Copy and Close', ['↵'], () => runAction('aipaste'), true), hint('Copy', ['Ctrl', 'C'], () => runAction('aicopy')), hint('Continue in Chat', ['Tab'], () => runAction('aichat')), hint('Regenerate', ['Ctrl', 'R'], () => runAction('regen'))] }
     if (v === 'herdList') return { app: { icon: 'i-lucide-feather', tile: '#E11D48', name: 'Laravel Herd' }, hints: [hint('Open', ['↵'], () => runAction('hopen'), true), hint(herdEditor().short, ['Ctrl', 'O'], () => runAction('hcode')), act] }
     if (v === 'gitList') return { app: { icon: 'i-lucide-git-branch', tile: '#F05032', name: 'Git' }, hints: [hint(editorFor('git').short, ['↵'], () => runAction('gopen'), true), hint('Terminal', ['Ctrl', 'T'], () => runAction('gterm')), act] }
+    if (v === 'remoteList') {
+      const src = remote.source.value
+      const work = src?.cmd === 'work'
+      return { app: { icon: src?.icon ?? 'i-lucide-link', tile: src?.tile ?? '', name: src?.title ?? '' }, hints: [hint(work ? 'Log Work' : 'Open', ['↵'], () => runAction(work ? 'rlog' : 'ropen'), true), hint('Copy', ['Ctrl', 'Shift', 'C'], () => runAction('rcopy')), act] }
+    }
     if (v === 'dockerList') {
       const r = curDocker()
       const k = docker.kind.value
@@ -2352,7 +2481,7 @@ function createLauncher() {
   return {
     s, els, ready, favs, disabled, usage, recent, aliases, hotkeys, installed, notes, clip, floatId, settings,
     searchModel, clipModel, forgeModel, splitModel, emojiModel, actionsModel, footer,
-    apps, qls, sn, files, docker, dockerModel, forge, openServer, openForgeList, herd, herdModel, openSite, git, gitModel, pw, copyPassword, dict, dictFlat, openDictionary,
+    apps, qls, sn, files, docker, dockerModel, remote, remoteModel, submitLogWork, forge, openServer, openForgeList, herd, herdModel, openSite, git, gitModel, pw, copyPassword, dict, dictFlat, openDictionary,
     chats, chatGroups, openSavedChat, claude,
     curClip, curSplit, curEmoji, detail, aiCmd, rowKeys, comboOwner, aliasOwner,
     toast, focus, go, openWin, openFromHotkey, openFromTray, activateFromHotkey, back, closeWith, activate, runAction, runSplit, openActions,
