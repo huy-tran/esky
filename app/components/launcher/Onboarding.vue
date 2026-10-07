@@ -9,9 +9,9 @@ const toggles = computed(() => ONB_ROWS[o.value.step - 1] || [])
 const tips = computed(() => ([
   ['Open Esky', ONB_HK[o.value.hk]![0]],
   ['Actions for any result', ['Ctrl', 'K']],
-  ['Expand a snippet', [';sig']],
+  ['Back, or hide Esky', ['Esc']],
   ['Chat with Claude', ['ai', 'Tab']],
-  ['Clipboard history', ['Ctrl', 'Shift', 'V']]
+  ['Settings and shortcuts', ['Ctrl', ',']]
 ] as [string, string[]][]))
 
 const pickHk = (i: number) => {

@@ -27,6 +27,8 @@ Last updated: 6 Oct 2026 (Git, Password Generator, Script Commands dropped).
 - [x] Tokens in Windows Credential Manager (listed as `<extension>.<preference>.Esky`, e.g. `forge.token.Esky`)
 - [x] Herd sites read through the fs plugin (63 sites, show in root search)
 - [x] Running Claude Code from Rust (AI Chat)
+- [x] Applications: everything in the Start menu's All apps (desktop and Store apps) with real icons, launched through `shell:AppsFolder`; Run as Administrator, Reveal in Explorer and Copy Path for apps with a known .exe. Rust `apps_list` / `app_icons` / `app_launch` (src-tauri/src/apps.rs). Desktop app only
+- [x] Settings → Shortcuts: Esky's hotkey plus a hotkey and alias for every command and app (`app/composables/useHotkeys.ts` holds the rules for both windows)
 - [x] Git → Uncommitted Changes: repos with uncommitted changes or unpushed commits in the folders set in Settings → Extensions → Git (default `~\Herd`, `~\Frontend`); changed files, branch, open in editor or Windows Terminal. Rust `git_status` / `open_terminal` in the app, `server/api/git/status.get.ts` in the browser
 - [x] Password Generator: password or passphrase with Bitwarden's options, defaults and rules (EFF long word list); options are saved, generated values never are
 
@@ -40,7 +42,6 @@ Last updated: 6 Oct 2026 (Git, Password Generator, Script Commands dropped).
 
 | Area | What is fake |
 |---|---|
-| Applications | Hard-coded list of 7 apps; opening launches nothing; Run as Administrator is fake |
 | File search | 8 sample files; Open / Open With do nothing; Reveal and Copy Path use fake paths |
 | Clipboard History | 9 sample items; nothing is recorded; Paste does nothing; Clipboard settings tab is saved but unused |
 | Snippets | 7 samples; Paste does nothing; no keyword expansion in other apps (Copy works) |
@@ -48,7 +49,7 @@ Last updated: 6 Oct 2026 (Git, Password Generator, Script Commands dropped).
 | System commands | Lock, Sleep, Restart, Shut down, Sign out, Empty Recycle Bin, Do Not Disturb, Eject only show a message |
 | Emoji | Paste does nothing (Copy works) |
 | Laravel Forge | 6 sample servers; Deploy is a timed fake; the API token is never used |
-| Quick AI input | Uses the sample Slack text; selected text in other apps is not read |
+| Quick AI input | Selected text in other apps is not read (you paste or type the text instead); ↵ copies the result rather than pasting it back |
 | Agent mode | Approval dialog is a demo; Claude cannot run commands from Esky |
 | Store | Fixed catalogue; "installing" is a 1 second animation |
 | Currency | Hard-coded rates; "updated 2 hours ago" is fixed text |
@@ -60,7 +61,7 @@ Last updated: 6 Oct 2026 (Git, Password Generator, Script Commands dropped).
 ## Next steps (in order)
 
 1. [x] Install Rust and the Visual Studio C++ Build Tools, build the desktop app: `npm run tauri:dev`.
-2. [ ] Real app search and launching: Start menu shortcuts, Microsoft Store apps.
+2. [x] Real app search and launching: Start menu shortcuts, Microsoft Store apps.
 3. [ ] Real Clipboard History: watch the clipboard, honour the ignore list and history settings, paste back. Don't record values copied from the Password Generator.
 4. [ ] Real file search (Windows Search index or chosen folders).
 5. [ ] Paste into the previous app (needed by Snippets, Emoji, Clipboard, Quick AI) and read the selected text for Quick AI.

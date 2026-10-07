@@ -1,7 +1,7 @@
 // Launcher state and behaviour.
 import {
   AFTER_TOOL, AI_CMDS, BRANCHES, CLIP_INIT, DENIED, EMOJI, FAVS, GROUPS,
-  ITEMS, KIND_LABEL, MODS, NOTES_INIT, ONB_HK, ONB_TG, QLINKS, RECENT, SEL, SERVERS,
+  ITEMS, KIND_LABEL, NOTES_INIT, ONB_HK, ONB_TG, QLINKS, RECENT, SERVERS,
   SNIPS, SPLIT, SPLIT_FOOT, SPLIT_KEYS, SUGGEST, SYS_CONFIRM, TOOL_OUT, USAGE_INIT, WIN_CMDS, FILES,
   type ChatBlock, type ChatMsg, type ClipItem, type Emoji, type FileEntry, type Note, type Quicklink,
   type Selection, type Server, type Snippet, type SplitView, type WinCmd
@@ -19,6 +19,8 @@ import { useHerd } from './useHerd'
 import { parseFolders } from '~/utils/git'
 import { openTerminal, useGitRepos } from './useGitRepos'
 import { usePassword, wordlist } from './usePassword'
+import { useApps } from './useApps'
+import { useHotkeys } from './useHotkeys'
 import { comboOf, phSegs, trunc, type BodySeg } from '~/utils/text'
 import { copyText, floatNote, hideWindow, isTauri, openSettings, openUrl, readClipboardText, revealPath, showWindow } from './usePlatform'
 import { persistRef } from './usePersist'
@@ -121,7 +123,10 @@ function createLauncher() {
     attachText: '',
     claudeStatus: null as ClaudeStatus | null,
     stream: null as Stream | null,
-    ai: null as null | { cmd: string, origOpen: boolean, result?: string, error?: string },
+    /** Quick AI: the command, the text it works on and where that came from, and the outcome. `needsInput` asks for the text first. */
+    ai: null as null | { cmd: string, input: string, source: string, origOpen: boolean, result?: string, error?: string, needsInput?: boolean },
+    /** Text typed or pasted for a Quick AI command run without a selection. */
+    aiInput: '',
     followUp: '',
     forgeQuery: '',
     forgeSel: 0,
@@ -155,7 +160,8 @@ function createLauncher() {
   const usage = ref<Record<string, number>>({ ...USAGE_INIT })
   const recent = ref<string[]>([...RECENT])
   const aliases = useAliases()
-  const hotkeys = ref<Record<string, string[]>>({})
+  const hk = useHotkeys()
+  const hotkeys = hk.hotkeys
   const exts = useExtensions()
   const installed = exts.installed
   const notes = ref<Note[]>(NOTES_INIT.map(n => ({ ...n })))
@@ -170,7 +176,7 @@ function createLauncher() {
     persistRef('disabled', disabled),
     persistRef('usage', usage),
     persistRef('recent', recent),
-    persistRef('hotkeys', hotkeys),
+    hk.ready,
     exts.ready,
     persistRef('notes', notes),
     persistRef('clipboard', clip),
@@ -187,6 +193,7 @@ function createLauncher() {
     act: null as HTMLInputElement | null,
     arg: null as HTMLInputElement | null,
     note: null as HTMLTextAreaElement | null,
+    aiInput: null as HTMLTextAreaElement | null,
     al: null as HTMLInputElement | null
   })
 
@@ -197,17 +204,8 @@ function createLauncher() {
 
   // ---------- helpers ----------
 
-  const rowKeys = (id: string): string[] | undefined => {
-    const h = hotkeys.value[id]
-    return h !== undefined ? h : ITEMS[id]?.keys
-  }
-
-  const comboOwner = (str: string, ex: string | null) =>
-    Object.keys(ITEMS).find((id) => {
-      if (id === ex) return false
-      const ks = rowKeys(id)
-      return !!ks && ks.length > 1 && MODS.includes(ks[0]!) && ks.join('+') === str
-    }) || null
+  const rowKeys = hk.keysFor
+  const comboOwner = hk.ownerOf
 
   const aliasOwner = (v: string, ex: string) => Object.keys(aliases.value).find(id => id !== ex && aliases.value[id] === v) || null
 
@@ -237,7 +235,7 @@ function createLauncher() {
   function focus() {
     requestAnimationFrame(() => {
       if (!s.open) return
-      const el = s.al ? els.al : s.actionsOpen ? els.act : s.view === 'chat' ? els.chat : s.view === 'deploy' ? els.deploy : els.top
+      const el = s.al ? els.al : s.actionsOpen ? els.act : s.view === 'chat' ? els.chat : s.view === 'deploy' ? els.deploy : s.view === 'aiResult' && s.ai?.needsInput ? els.aiInput : els.top
       el?.focus?.()
     })
   }
@@ -272,9 +270,20 @@ function createLauncher() {
 
   // ---------- models ----------
 
+  const apps = useApps()
+
   const mk = (id: string, hl?: string): Row => {
     const it = ITEMS[id]!
-    return { key: id, id, title: it.title, sub: it.sub, icon: it.icon, tile: it.tile, kind: it.kind, keys: rowKeys(id), label: KIND_LABEL[it.kind], alias: aliases.value[id] || '', hl, path: `C:\\Users\\alex\\AppData\\Local\\Programs\\${it.title}`, run: () => activate(id) }
+    return { key: id, id, title: it.title, sub: it.sub, icon: apps.icons.value[id] ?? it.icon, tile: it.tile, kind: it.kind, keys: rowKeys(id), label: KIND_LABEL[it.kind], alias: aliases.value[id] || '', hl, path: it.app?.path ?? undefined, run: () => activate(id) }
+  }
+
+  /** How well a title matches the query: 3 starts with it, 2 a word or the initials start with it, 1 contains it, 0 no match. */
+  function matchScore(title: string, q: string) {
+    const t = title.toLowerCase()
+    if (t.startsWith(q)) return 3
+    const words = t.split(/[\s\-_.()]+/).filter(Boolean)
+    if (words.some(w => w.startsWith(q)) || words.map(w => w[0]).join('').startsWith(q)) return 2
+    return t.includes(q) ? 1 : 0
   }
 
   // ---------- Herd sites ----------
@@ -420,6 +429,7 @@ function createLauncher() {
   }
 
   const searchModel = computed(() => {
+    void apps.version.value // app items in ITEMS changed
     const q = s.query.trim()
     const ql = q.toLowerCase()
     let card: (QuickCard & { run: () => void }) | null = null
@@ -448,11 +458,20 @@ function createLauncher() {
       const aliasHit = t ? [] : Object.keys(aliases.value).filter(id => ITEMS[id] && ok(id) && aliases.value[id] === ql)
       if (aliasHit.length) sections.push({ title: 'Alias', rows: aliasHit.map(id => mk(id)) })
       if (!t) {
+        // Best title match first, then the most used. A subtitle or alias match counts as a weak match.
+        const score = (id: string) => {
+          const it = ITEMS[id]!
+          return matchScore(it.title, ql) || (it.sub.toLowerCase().includes(ql) || (aliases.value[id] || '').startsWith(ql) ? 1 : 0)
+        }
         for (const [k, name] of GROUPS) {
           const rows = Object.keys(ITEMS)
-            .filter(id => ok(id) && !aliasHit.includes(id) && ITEMS[id]!.kind === k && (ITEMS[id]!.title.toLowerCase().includes(ql) || ITEMS[id]!.sub.toLowerCase().includes(ql) || (aliases.value[id] || '').startsWith(ql)))
-            .sort((a, b) => (usage.value[b] || 0) - (usage.value[a] || 0))
-            .map(id => mk(id, ql))
+            .filter(id => ITEMS[id]!.kind === k && ok(id) && !aliasHit.includes(id))
+            .map(id => ({ id, sc: score(id) }))
+            .filter(x => x.sc > 0)
+            .sort((a, b) => b.sc - a.sc || (usage.value[b.id] || 0) - (usage.value[a.id] || 0))
+            // There are 150+ apps; a short query would otherwise flood the list.
+            .slice(0, k === 'app' ? 8 : undefined)
+            .map(x => mk(x.id, ql))
           if (rows.length) sections.push({ title: name, rows })
         }
         // Herd sites sit right after Applications and Commands.
@@ -589,7 +608,8 @@ function createLauncher() {
       const e = searchModel.value.flat[s.sel]
       target = e ? e.title : ''
       const fav = !!e?.id && favs.value.includes(e.id)
-      list = [O('open', 'Open', 'i-lucide-corner-down-left', ['↵']), O('admin', 'Run as Administrator', 'i-lucide-shield', ['Ctrl', 'Shift', '↵']), O('reveal', 'Reveal in Explorer', 'i-lucide-folder-search', ['Ctrl', 'Shift', 'E']), O('path', 'Copy Path', 'i-lucide-copy', ['Ctrl', 'Shift', 'C']), O('pin', fav ? 'Unpin from Favourites' : 'Pin to Favourites', 'i-lucide-pin', ['Ctrl', 'Shift', 'P']), O('alias', 'Add Alias', 'i-lucide-at-sign', ['Ctrl', 'Shift', 'A']), O('hotkey', 'Set Hotkey', 'i-lucide-keyboard', ['Ctrl', 'Shift', 'H']), O('disable', 'Disable Result', 'i-lucide-eye-off', ['Ctrl', 'Shift', 'D'], true)]
+      // Only results with a file behind them (apps with a known .exe, Herd sites) can be revealed or run elevated.
+      list = [O('open', 'Open', 'i-lucide-corner-down-left', ['↵']), ...(e?.path && e.kind === 'app' ? [O('admin', 'Run as Administrator', 'i-lucide-shield', ['Ctrl', 'Shift', '↵'])] : []), ...(e?.path ? [O('reveal', 'Reveal in Explorer', 'i-lucide-folder-search', ['Ctrl', 'Shift', 'E']), O('path', 'Copy Path', 'i-lucide-copy', ['Ctrl', 'Shift', 'C'])] : []), O('pin', fav ? 'Unpin from Favourites' : 'Pin to Favourites', 'i-lucide-pin', ['Ctrl', 'Shift', 'P']), O('alias', 'Add Alias', 'i-lucide-at-sign', ['Ctrl', 'Shift', 'A']), O('hotkey', 'Set Hotkey', 'i-lucide-keyboard', ['Ctrl', 'Shift', 'H']), O('disable', 'Disable Result', 'i-lucide-eye-off', ['Ctrl', 'Shift', 'D'], true)]
     } else if (s.view === 'clipboard') {
       const c = curClip()
       target = c ? trunc(c.preview, 40) : 'Clipboard'
@@ -617,7 +637,7 @@ function createLauncher() {
       list = [O('dcopy', 'Copy Definition', 'i-lucide-copy', ['↵']), O('dword', 'Copy Word', 'i-lucide-type', ['Ctrl', 'Shift', 'C']), O('dopen', 'Open in Wiktionary', 'i-lucide-external-link', ['Ctrl', 'O'])]
     } else if (s.view === 'aiResult') {
       target = aiCmd().title
-      list = [O('aipaste', 'Paste', 'i-lucide-clipboard-paste', ['↵']), O('aicopy', 'Copy', 'i-lucide-copy', ['Ctrl', 'C']), O('aichat', 'Continue in Chat', 'i-lucide-message-square', ['Tab']), O('regen', 'Regenerate', 'i-lucide-refresh-cw', ['Ctrl', 'R'])]
+      list = s.ai?.needsInput ? [O('airun', 'Run', 'i-lucide-play', ['↵'])] : [O('aipaste', 'Copy and Close', 'i-lucide-clipboard-copy', ['↵']), O('aicopy', 'Copy', 'i-lucide-copy', ['Ctrl', 'C']), O('aichat', 'Continue in Chat', 'i-lucide-message-square', ['Tab']), O('regen', 'Regenerate', 'i-lucide-refresh-cw', ['Ctrl', 'R'])]
     } else if (SPLIT[s.view] || s.view === 'emoji') {
       const x = s.view === 'emoji' ? curEmoji() : curSplit()
       const any = x as Record<string, any> | undefined
@@ -667,10 +687,26 @@ function createLauncher() {
     toast('success', `Copied ${c.copy}`, c.caption.replace(/ =$/, ''))
   }
 
+  /** Open an installed app (or run it as administrator), then hide Esky. If Windows refuses, Esky comes back with the reason. */
+  function launchApp(id: string, admin = false) {
+    const it = ITEMS[id]
+    if (!it?.app) return
+    const app = it.app
+    if (admin) {
+      usage.value = { ...usage.value, [id]: (usage.value[id] || 0) + 1 }
+      recent.value = [id, ...recent.value.filter(x => x !== id)].slice(0, 5)
+    }
+    closeWith(`Opened ${it.title}${admin ? ' as administrator' : ''}`, () => apps.launch(app, admin).catch((e) => {
+      s.open = true
+      toast('error', `Couldn’t open ${it.title}`, admin ? 'Windows didn’t start it as administrator (the prompt may have been cancelled).' : String(e))
+    }))
+  }
+
   function activate(id: string) {
     const it = ITEMS[id]!
     usage.value = { ...usage.value, [id]: (usage.value[id] || 0) + 1 }
     recent.value = [id, ...recent.value.filter(x => x !== id)].slice(0, 5)
+    if (it.app) return launchApp(id)
     if ((it.go && SPLIT[it.go]) || it.go === 'emoji') return go(it.go as View, { splitQuery: '', splitSel: 0 })
     if (it.go === 'onboard') return Object.assign(s, { open: true, actionsOpen: false, onb: { step: 0, hk: 0, tg: { ...ONB_TG } } })
     if (it.qlink) {
@@ -715,6 +751,7 @@ function createLauncher() {
       return
     }
     if (it.go === 'settings') return openSettings()
+    if (it.go === 'shortcuts') return openSettings({ tab: 'shortcuts' })
     if (it.ai) return runAi(it.ai)
     if (id === 'lock') return closeWith('Screen locked')
     closeWith(`Opened ${it.title}`)
@@ -836,21 +873,19 @@ function createLauncher() {
       return
     }
     const combo = comboOf(e)
-    const str = combo.join('+')
-    if (str === 'Alt+Space') {
-      s.hk = { ...h, combo, reserved: true, ownerId: null, conflict: 'Alt + Space opens Esky, so it can’t be assigned to a command.', note: '' }
+    const c = hk.check(combo, h.id)
+    if (c.error) {
+      s.hk = { ...h, combo, reserved: true, ownerId: null, conflict: c.error, note: '' }
       return
     }
-    const owner = comboOwner(str, h.id)
-    s.hk = { ...h, combo, reserved: false, ownerId: owner, conflict: owner ? `Already used by ${ITEMS[owner]!.title}. Saving moves the hotkey here.` : '', note: '' }
+    const owner = c.ownerId ?? null
+    s.hk = { ...h, combo, reserved: false, ownerId: owner, conflict: owner ? `Already used by ${ITEMS[owner]!.title}. Saving moves the hotkey here.` : c.warning ? `${c.warning} Esky would override it.` : '', note: '' }
   }
 
   function saveHk() {
     const h = s.hk
     if (!h || !h.combo || h.reserved) return
-    const hot = { ...hotkeys.value, [h.id]: h.combo }
-    if (h.ownerId) hot[h.ownerId] = []
-    hotkeys.value = hot
+    hk.assign(h.id, h.combo)
     s.hk = null
     toast('success', 'Hotkey saved', `${h.combo.join(' + ')} · ${h.title}${h.ownerId ? ` (removed from ${ITEMS[h.ownerId]!.title})` : ''}`)
   }
@@ -858,7 +893,7 @@ function createLauncher() {
   function clearHk() {
     const h = s.hk
     if (!h) return
-    hotkeys.value = { ...hotkeys.value, [h.id]: [] }
+    hk.assign(h.id, [])
     s.hk = null
     toast('info', 'Hotkey removed', h.title)
   }
@@ -1064,9 +1099,22 @@ function createLauncher() {
     })
   }
 
-  async function runAi(cmd: string) {
+  /**
+   * Run a Quick AI command on `text`, or on the selected text. With neither, ask for the text first
+   * (prefilled from the clipboard), since reading the selection in other apps isn't built yet.
+   */
+  async function runAi(cmd: string, text?: string, source = 'Your text') {
     cancelRun()
-    Object.assign(s, { view: 'aiResult', selection: s.selection || SEL, ai: { cmd, origOpen: false, result: '', error: '' }, followUp: '', actionsOpen: false, stream: { target: 'ai', text: '', pos: 0 } })
+    const input = text ?? s.selection?.text ?? ''
+    if (!input.trim()) {
+      Object.assign(s, { view: 'aiResult', ai: { cmd, input: '', source, origOpen: false, needsInput: true }, aiInput: '', followUp: '', actionsOpen: false, stream: null })
+      readClipboardText().then((clip) => {
+        if (s.ai?.cmd === cmd && s.ai.needsInput && !s.aiInput && clip.trim()) s.aiInput = clip
+      })
+      return
+    }
+    const from = text === undefined && s.selection ? s.selection.app : source
+    Object.assign(s, { view: 'aiResult', ai: { cmd, input, source: from, origOpen: false, result: '', error: '' }, followUp: '', actionsOpen: false, stream: { target: 'ai', text: '', pos: 0 } })
     if (!s.claudeReady || !s.claudeStatus) await checkClaude()
     if (!s.claudeReady) {
       s.ai = { ...s.ai!, error: s.claudeStatus?.installed ? 'Claude Code isn’t signed in. Run “claude login” in a terminal.' : 'Claude Code isn’t installed. Run “npm install -g @anthropic-ai/claude-code”.' }
@@ -1075,7 +1123,7 @@ function createLauncher() {
     }
     let out = ''
     const mine = () => s.view === 'aiResult' && s.ai?.cmd === cmd
-    run = await claude.stream({ mode: 'quick', prompt: s.selection!.text, system: cmd }, (e) => {
+    run = await claude.stream({ mode: 'quick', prompt: input, system: cmd }, (e) => {
       if (!mine()) return
       if (e.type === 'text') {
         out += e.text
@@ -1170,7 +1218,7 @@ function createLauncher() {
   function continueInChat() {
     const c = aiCmd()
     const result = s.ai?.result ?? ''
-    const selected = (s.selection || SEL).text
+    const selected = s.ai?.input ?? ''
     const follow = s.followUp
     cancelRun()
     startNewChat()
@@ -1190,12 +1238,25 @@ function createLauncher() {
     const sv = s.view === 'forgeList' ? forgeModel.value.flat[s.forgeSel] : s.server
     switch (id) {
       case 'open': e?.run(); break
-      case 'admin': if (e) closeWith(`Launched ${e.title} as administrator`); break
-      case 'reveal': if (e) closeWith(`Revealed ${e.title} in File Explorer`, () => e.path && revealPath(e.path)); break
-      case 'path': if (e) {
-        copyText(e.path || e.title)
-        toast('success', 'Path copied', e.path || e.title)
-      } break
+      case 'admin': {
+        const app = e?.id ? ITEMS[e.id]?.app : undefined
+        if (!e || !app?.path) {
+          toast('info', 'This result can\'t run as administrator')
+          break
+        }
+        launchApp(e.id!, true)
+        break
+      }
+      case 'reveal':
+        if (e?.path) closeWith(`Revealed ${e.title} in File Explorer`, () => revealPath(e.path!))
+        else toast('info', 'This result has no file to reveal')
+        break
+      case 'path':
+        if (e?.path) {
+          copyText(e.path)
+          toast('success', 'Path copied', e.path)
+        } else toast('info', 'This result has no path')
+        break
       case 'pin': {
         if (!e || !e.id) {
           toast('info', 'This result can\'t be pinned')
@@ -1340,7 +1401,8 @@ function createLauncher() {
         }
         break
       case 'aichat': continueInChat(); break
-      case 'regen': runAi(aiCmd().id); break
+      case 'regen': if (s.ai && !s.ai.needsInput) runAi(s.ai.cmd, s.ai.input, s.ai.source); break
+      case 'airun': if (s.ai?.needsInput && s.aiInput.trim()) runAi(s.ai.cmd, s.aiInput); break
       case 'deploy': submitDeploy(); break
       case 'back': back(); break
       case 'hopen': {
@@ -1716,6 +1778,14 @@ function createLauncher() {
       }
       return
     }
+    if (v === 'aiResult' && s.ai?.needsInput) {
+      // Typing the text: Enter runs, Shift Enter is a new line.
+      if (k === 'Enter' && !sh) {
+        stop()
+        runAction('airun')
+      }
+      return
+    }
     if (v === 'aiResult') {
       if (k === 'Enter') {
         stop()
@@ -1899,7 +1969,8 @@ function createLauncher() {
         ? [hint('Send', ['↵'], () => send(), true), hint('New line', ['Shift', '↵']), hint('Chats', ['Ctrl', 'B'], () => { s.showChats = !s.showChats }), act]
         : [hint('Check again', ['↵'], checkAgain, true), hint('Back', ['Esc'], back)] }
     }
-    if (v === 'aiResult') return { app: { icon: 'i-lucide-sparkles', tile: 'var(--accent)', name: 'Quick AI' }, hints: [hint('Paste', ['↵'], () => runAction('aipaste'), true), hint('Copy', ['Ctrl', 'C'], () => runAction('aicopy')), hint('Continue in Chat', ['Tab'], () => runAction('aichat')), hint('Regenerate', ['Ctrl', 'R'], () => runAction('regen'))] }
+    if (v === 'aiResult' && s.ai?.needsInput) return { app: { icon: 'i-lucide-sparkles', tile: 'var(--accent)', name: 'Quick AI' }, hints: [hint('Run', ['↵'], () => runAction('airun'), true), hint('New line', ['Shift', '↵']), hint('Back', ['Esc'], back)] }
+    if (v === 'aiResult') return { app: { icon: 'i-lucide-sparkles', tile: 'var(--accent)', name: 'Quick AI' }, hints: [hint('Copy and Close', ['↵'], () => runAction('aipaste'), true), hint('Copy', ['Ctrl', 'C'], () => runAction('aicopy')), hint('Continue in Chat', ['Tab'], () => runAction('aichat')), hint('Regenerate', ['Ctrl', 'R'], () => runAction('regen'))] }
     if (v === 'herdList') return { app: { icon: 'i-lucide-feather', tile: '#E11D48', name: 'Laravel Herd' }, hints: [hint('Open', ['↵'], () => runAction('hopen'), true), hint(herdEditor().short, ['Ctrl', 'O'], () => runAction('hcode')), act] }
     if (v === 'gitList') return { app: { icon: 'i-lucide-git-branch', tile: '#F05032', name: 'Git' }, hints: [hint(editorFor('git').short, ['↵'], () => runAction('gopen'), true), hint('Terminal', ['Ctrl', 'T'], () => runAction('gterm')), act] }
     if (v === 'password') return { app: { icon: 'i-lucide-key-round', tile: '#175DDC', name: 'Password Generator' }, hints: [hint('Copy', ['↵'], () => runAction('pwcopy'), true), hint('Regenerate', ['Ctrl', 'R'], () => runAction('pwnew')), act] }
@@ -1922,11 +1993,14 @@ function createLauncher() {
 
   // ---------- side effects ----------
 
-  watch(() => [s.view, s.open, s.actionsOpen, s.approval, !s.al], () => focus())
+  watch(() => [s.view, s.open, s.actionsOpen, s.approval, !s.al, s.ai?.needsInput], () => focus())
 
   watch(() => s.open, (o) => {
-    if (o) showWindow(settings.value.activeMonitor)
-    else hideWindow()
+    if (o) {
+      showWindow(settings.value.activeMonitor)
+      // Pick up apps installed since the list was read.
+      apps.refreshIfStale()
+    } else hideWindow()
   })
 
   watch(floatId, id => floatNote(id))
@@ -1934,6 +2008,7 @@ function createLauncher() {
   ready.then(() => {
     if (!onboarded.value) Object.assign(s, { open: true, onb:{ step: 0, hk: 0, tg: { ...ONB_TG } } })
     if (floatId.value) floatNote(floatId.value)
+    apps.load()
     // Herd sites also appear in root search.
     if (exts.isActive('herd')) loadHerd()
     // A different Herd config folder (set in Settings) means a different site list.
@@ -1945,7 +2020,7 @@ function createLauncher() {
   return {
     s, els, ready, favs, disabled, usage, recent, aliases, hotkeys, installed, notes, clip, floatId, settings,
     searchModel, clipModel, forgeModel, splitModel, emojiModel, actionsModel, footer,
-    herd, herdModel, openSite, git, gitModel, pw, copyPassword, dict, dictFlat, openDictionary,
+    apps, herd, herdModel, openSite, git, gitModel, pw, copyPassword, dict, dictFlat, openDictionary,
     chats, chatGroups, openSavedChat, claude,
     curClip, curSplit, curEmoji, detail, aiCmd, rowKeys, comboOwner, aliasOwner,
     toast, focus, go, openWin, back, closeWith, activate, runAction, runSplit, openActions,

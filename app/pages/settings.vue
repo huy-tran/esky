@@ -12,59 +12,18 @@ const colorMode = useColorMode()
 
 const TABS = [
   { value: 'general', label: 'General', icon: 'i-lucide-settings' },
+  { value: 'shortcuts', label: 'Shortcuts', icon: 'i-lucide-keyboard' },
   { value: 'extensions', label: 'Extensions', icon: 'i-lucide-puzzle' },
   { value: 'clipboard', label: 'Clipboard', icon: 'i-lucide-clipboard-list' },
   { value: 'ai', label: 'AI', icon: 'i-lucide-sparkles' },
   { value: 'appearance', label: 'Appearance', icon: 'i-lucide-palette' },
   { value: 'about', label: 'About', icon: 'i-lucide-info' }
 ]
-const CONFLICTS: Record<string, string> = {
-  'Ctrl+Space': 'Windows uses it to switch the input method for some keyboards.',
-  'Alt+Tab': 'Windows uses it to switch between open windows.',
-  'Win+Space': 'Windows uses it to switch keyboard layout.',
-  'Ctrl+Shift+Esc': 'Windows uses it to open Task Manager.',
-  'Alt+F4': 'Windows uses it to close the active window.',
-  'Ctrl+Alt+Delete': 'Reserved by Windows.'
-}
-
 /** Browser build: draw the 900 × 620 window frame (the desktop app has a real one). */
 const framed = !isTauri()
 
 const tab = ref('general')
 const tabTitle = computed(() => TABS.find(t => t.value === tab.value)!.label)
-
-// General: launcher hotkey recorder
-const recording = ref(false)
-const conflict = ref<string[] | null>(null)
-const recBtn = ref<{ $el?: HTMLElement } | null>(null)
-
-function onRecKey(e: KeyboardEvent) {
-  if (!recording.value) {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault()
-      recording.value = true
-    }
-    return
-  }
-  e.preventDefault()
-  e.stopPropagation()
-  if (e.key === 'Escape' && !e.ctrlKey && !e.altKey) {
-    recording.value = false
-    return
-  }
-  if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return
-  const mods = [e.ctrlKey && 'Ctrl', e.metaKey && 'Win', e.altKey && 'Alt', e.shiftKey && 'Shift'].filter(Boolean) as string[]
-  if (!mods.length) return
-  const key = e.code === 'Space' ? 'Space' : e.key.length === 1 ? e.key.toUpperCase() : e.key
-  const keys = [...mods, key]
-  const clash = CONFLICTS[keys.join('+')]
-  recording.value = false
-  if (clash) conflict.value = keys
-  else {
-    conflict.value = null
-    S.value.hotkey = keys
-  }
-}
 
 const generalSwitches: [keyof SettingsState, string, string][] = [
   ['startLogin', 'Start at login', 'Esky runs quietly in the tray after you sign in to Windows.'],
@@ -214,7 +173,6 @@ function checkUpdates() {
 
 // Ctrl 1-6 jump between sections, Esc closes the window.
 function onKey(e: KeyboardEvent) {
-  if (recording.value) return
   if ((e.ctrlKey || e.metaKey) && /^[1-9]$/.test(e.key) && TABS[+e.key - 1]) {
     e.preventDefault()
     tab.value = TABS[+e.key - 1]!.value
@@ -298,44 +256,14 @@ const selectUi = { trailingIcon: 'size-3.5 text-(--muted)', content: 'bg-(--pop-
 
           <!-- General -->
           <div v-if="tab === 'general'" :class="card">
-            <div class="px-4 py-3.5 flex flex-col gap-2.5 border-b border-(--bd)">
-              <div class="flex items-center gap-4">
-                <SettingsRow title="Esky hotkey" desc="Opens and closes the launcher from anywhere." />
-                <UButton
-                  ref="recBtn"
-                  color="neutral"
-                  variant="outline"
-                  class="min-w-[180px] h-[34px] justify-center gap-1 px-2.5 rounded-[6px] ring-0 border bg-(--input-bg) hover:bg-(--input-bg) focus-visible:outline-none"
-                  :style="{ borderColor: recording ? 'var(--accent)' : conflict ? 'var(--warn)' : 'var(--bd)', boxShadow: recording ? '0 0 0 3px var(--accent-soft)' : 'none' }"
-                  @click="recording = true"
-                  @keydown="onRecKey"
-                  @blur="recording = false"
-                >
-                  <span v-if="recording" class="text-[12.5px] text-(--accent-fg) animate-[lp-pulse_1.2s_infinite]">Press a shortcut…</span>
-                  <Keys v-else :keys="S.hotkey" size="set" />
-                </UButton>
-                <UButton :class="`${ghostBtn} h-[34px] bg-transparent hover:bg-transparent`" color="neutral" variant="outline" @click="S.hotkey = ['Alt', 'Space']; conflict = null">Reset</UButton>
-              </div>
-              <UAlert
-                v-if="conflict"
-                role="alert"
-                icon="i-lucide-triangle-alert"
-                class="flex gap-2.5 items-start px-3 py-2.5 rounded-[6px] ring-0 bg-(--warn-soft) text-(--fg)"
-                :ui="{ icon: 'size-[15px] mt-px text-(--warn)', wrapper: 'min-w-0 flex-1', description: 'text-[12.5px] leading-normal text-(--fg) opacity-100', actions: 'mt-0 flex-none' }"
-                orientation="horizontal"
-                :actions="[{ label: 'Use anyway', color: 'neutral', variant: 'outline', class: 'h-[26px] px-2.5 rounded-[6px] ring-0 border border-(--bd) bg-(--surface) text-(--fg) text-[12px] font-normal', onClick: () => { S.hotkey = conflict!; conflict = null } }]"
-              >
-                <template #description>
-                  <span class="font-semibold">{{ conflict.join(' ') }} is already in use.</span> {{ CONFLICTS[conflict.join('+')] }} Esky would override it.
-                </template>
-              </UAlert>
-              <div v-if="recording" class="text-[12px] text-(--muted)">Hold modifiers and press a key. Esc cancels.</div>
-            </div>
             <div v-for="([k, title, desc], j) in generalSwitches" :key="k" :class="[row, j < generalSwitches.length - 1 ? 'border-b border-(--bd)' : '']">
               <SettingsRow :title="title" :desc="desc" />
               <USwitch v-model="(S[k] as boolean)" :aria-label="title" :ui="switchLg" />
             </div>
           </div>
+
+          <!-- Shortcuts -->
+          <SettingsShortcutsPanel v-else-if="tab === 'shortcuts'" />
 
           <!-- Extensions -->
           <div v-else-if="tab === 'extensions'" class="flex gap-4 items-start">

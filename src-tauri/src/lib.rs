@@ -318,6 +318,51 @@ fn open_terminal(path: String) -> Result<(), String> {
         .map_err(|e| format!("Couldn't open a terminal: {e}"))
 }
 
+// Installed apps (see apps.rs). The Shell calls are slow-ish, so they run off the main thread.
+
+#[cfg(windows)]
+mod apps;
+
+#[cfg(windows)]
+async fn blocking<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> Result<T, String> {
+    tauri::async_runtime::spawn_blocking(f).await.map_err(|e| e.to_string())
+}
+
+/// Apps from the last `apps_list` (AppsFolder id -> .exe). Only these can be launched, and
+/// "Run as administrator" only ever starts the .exe recorded here, never a path from the page.
+#[derive(Default)]
+struct KnownApps(Mutex<HashMap<String, Option<String>>>);
+
+#[cfg(windows)]
+#[tauri::command]
+async fn apps_list(app: AppHandle) -> Result<Vec<apps::App>, String> {
+    let list = blocking(apps::list).await??;
+    *app.state::<KnownApps>().0.lock().unwrap() = list.iter().map(|a| (a.id.clone(), a.path.clone())).collect();
+    Ok(list)
+}
+
+#[cfg(windows)]
+#[tauri::command]
+async fn app_icons(app: AppHandle, ids: Vec<String>) -> Result<HashMap<String, String>, String> {
+    let known = app.state::<KnownApps>().0.lock().unwrap().clone();
+    let ids: Vec<String> = ids.into_iter().filter(|id| known.contains_key(id)).collect();
+    blocking(move || apps::icons(&ids, 64)).await
+}
+
+#[cfg(windows)]
+#[tauri::command]
+async fn app_launch(app: AppHandle, id: String, admin: bool) -> Result<(), String> {
+    let path = app.state::<KnownApps>().0.lock().unwrap().get(&id).cloned().ok_or("Unknown app")?;
+    blocking(move || {
+        if admin {
+            apps::launch_admin(path.as_deref().ok_or("This app can't run as administrator")?)
+        } else {
+            apps::launch(&id)
+        }
+    })
+    .await?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -334,6 +379,7 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_fs::init())
         .manage(ClaudeRuns::default())
+        .manage(KnownApps::default())
         .invoke_handler(tauri::generate_handler![
             secret_get,
             secret_set,
@@ -342,7 +388,10 @@ pub fn run() {
             claude_cancel,
             claude_info,
             git_status,
-            open_terminal
+            open_terminal,
+            apps_list,
+            app_icons,
+            app_launch
         ])
         .setup(|app| {
             let window = app

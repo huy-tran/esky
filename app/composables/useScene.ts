@@ -47,7 +47,7 @@ export function useScene(k: string) {
     case 'confirm': return st({ query: 'restart', confirm: L.sysConfirm('restart') })
     case 'hotkey': return st({ view: 'windows', hk: { id: 'wLeft', title: 'Left Half', combo: null, conflict: '' } })
     case 'hkConflict': return st({ view: 'windows', hk: { id: 'wLeft', title: 'Left Half', combo: ['Ctrl', 'Shift', 'V'], ownerId: 'clip', conflict: 'Already used by Clipboard History. Saving moves the hotkey here.' } })
-    case 'alias': return st({ query: 'code', al: { id: 'figma', title: 'Figma', value: 'fig' } })
+    case 'alias': return st({ query: 'code', al: { id: 'clip', title: 'Clipboard History', value: 'cb' } })
     case 'store': return st({ view: 'store', splitSel: 2 })
     case 'float':
       st({ view: 'notes' })

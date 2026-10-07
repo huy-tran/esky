@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { SEL } from '~/data/fixtures'
-
 const L = useLauncher()
 const s = L.s
 
@@ -13,11 +11,29 @@ const origOpen = computed({
   get: () => !!s.ai?.origOpen,
   set: () => L.toggleOrig()
 })
-const sel = computed(() => s.selection || SEL)
+const sel = computed(() => ({ text: s.ai?.input ?? '', app: s.ai?.source ?? '' }))
 </script>
 
 <template>
-  <div class="h-full overflow-y-auto pt-3 px-4 pb-4 box-border flex flex-col gap-3.5">
+  <!-- No selected text: ask for it. -->
+  <div v-if="s.ai?.needsInput" class="h-full pt-3 px-4 pb-4 box-border flex flex-col gap-2.5">
+    <div class="flex items-center gap-2 text-[12.5px] text-(--muted)">
+      <UIcon :name="cmd.icon" class="size-[15px] text-(--accent-fg)" />
+      Paste or type the text, then press <Keys :keys="['↵']" size="sm" />
+      <span class="flex-1" />
+      <span v-if="s.aiInput" class="text-[12px]">{{ s.aiInput.length.toLocaleString() }} characters</span>
+    </div>
+    <UTextarea
+      :ref="(c: any) => { L.els.aiInput = c?.textareaRef ?? null }"
+      v-model="s.aiInput"
+      placeholder="Your text…"
+      variant="none"
+      class="flex-1 min-h-0 w-full"
+      :ui="{ root: 'h-full', base: 'h-full p-3 resize-none rounded-[6px] border border-(--bd) bg-(--input-bg) text-[14px] leading-[1.6] text-(--fg) placeholder:text-(--faint) focus-visible:outline-2 focus-visible:outline-(--accent)' }"
+    />
+    <div class="text-[12px] text-(--muted)">Filled in from your clipboard when there's text on it.</div>
+  </div>
+  <div v-else class="h-full overflow-y-auto pt-3 px-4 pb-4 box-border flex flex-col gap-3.5">
     <UCollapsible v-model:open="origOpen" class="flex-none border border-(--bd) rounded-[6px] bg-(--surface) cursor-default">
       <div class="h-9 flex items-center gap-2 px-2.5">
         <UIcon :name="origOpen ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'" class="size-3.5 text-(--muted)" />

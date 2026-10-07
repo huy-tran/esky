@@ -19,7 +19,7 @@ const top = computed((): Top | null => {
   if (v === 'herdList') return { ph: 'Search Herd sites…', get: () => s.herdQuery, set: (q) => { s.herdQuery = q; s.herdSel = 0 } }
   if (v === 'gitList') return { ph: 'Search repos or branches…', get: () => s.gitQuery, set: (q) => { s.gitQuery = q; s.gitSel = 0 } }
   if (v === 'dictionary') return { ph: 'Type a word to define…', get: () => s.dictWord, set: (q) => { s.dictWord = q } }
-  if (v === 'aiResult') return { ph: 'Ask a follow-up, then Tab to continue in chat…', get: () => s.followUp, set: (q) => { s.followUp = q } }
+  if (v === 'aiResult' && !s.ai?.needsInput) return { ph: 'Ask a follow-up, then Tab to continue in chat…', get: () => s.followUp, set: (q) => { s.followUp = q } }
   if (SPLIT_PH[v]) return { ph: SPLIT_PH[v]!, get: () => s.splitQuery, set: (q) => { s.splitQuery = q; s.splitSel = 0 } }
   return null
 })
@@ -29,7 +29,7 @@ const value = computed({
   set: (q: string) => top.value?.set(q)
 })
 
-const title = computed(() => s.view === 'forgeDetail' ? s.server.name : s.view === 'deploy' ? 'Deploy Site' : s.view === 'password' ? 'Generate Password' : '')
+const title = computed(() => s.view === 'forgeDetail' ? s.server.name : s.view === 'deploy' ? 'Deploy Site' : s.view === 'password' ? 'Generate Password' : s.view === 'aiResult' ? L.aiCmd().title : '')
 
 const chip = computed(() => {
   const fc = L.forgeModel.value.flat.length

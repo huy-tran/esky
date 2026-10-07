@@ -45,31 +45,33 @@ export interface Item {
   win?: WinCmd
   qlink?: Quicklink
   snip?: Snippet
+  /** An installed app (see useApps). */
+  app?: { id: string, path: string | null }
 }
 
 export const ITEMS: Record<string, Item> = {
-  vscode: { title: 'Visual Studio Code', sub: 'Code editor', icon: 'i-lucide-code-xml', tile: '#2563EB', kind: 'app' },
-  terminal: { title: 'Windows Terminal', sub: 'Command line', icon: 'i-lucide-square-terminal', tile: '#3F3F46', kind: 'app' },
-  herd: { title: 'Laravel Herd', sub: 'PHP and Node toolchain', icon: 'i-lucide-feather', tile: '#E11D48', kind: 'app' },
-  figma: { title: 'Figma', sub: 'Design', icon: 'i-lucide-pen-tool', tile: '#7C3AED', kind: 'app' },
-  explorer: { title: 'File Explorer', sub: 'Files and folders', icon: 'i-lucide-folder-open', tile: '#CA8A04', kind: 'app' },
-  calc: { title: 'Calculator', sub: 'Windows accessory', icon: 'i-lucide-calculator', tile: '#475569', kind: 'app' },
-  clip: { title: 'Clipboard History', sub: 'Esky', icon: 'i-lucide-clipboard-list', kind: 'cmd', keys: ['Ctrl', 'Shift', 'V'], go: 'clipboard' },
+  clip: { title: 'Clipboard History', sub: 'Esky', icon: 'i-lucide-clipboard-list', kind: 'cmd', go: 'clipboard' },
   ai: { title: 'Ask AI', sub: 'Chat with Claude', icon: 'i-lucide-sparkles', kind: 'cmd', keys: ['ai', 'Tab'], go: 'chat' },
   forgeSearch: { title: 'Search Servers', sub: 'Laravel Forge', icon: 'i-lucide-hammer', tile: '#EA580C', kind: 'cmd', go: 'forgeList' },
   forgeDeploy: { title: 'Deploy Site', sub: 'Laravel Forge', icon: 'i-lucide-rocket', tile: '#EA580C', kind: 'cmd', go: 'deploy' },
   grammar: { title: 'Fix Grammar', sub: 'Quick AI', icon: 'i-lucide-spell-check', kind: 'cmd', ai: 'grammar' },
+  aiTranslate: { title: 'Translate English ↔ Vietnamese', sub: 'Quick AI', icon: 'i-lucide-languages', kind: 'cmd', ai: 'translate' },
+  aiExplain: { title: 'Explain Code', sub: 'Quick AI', icon: 'i-lucide-braces', kind: 'cmd', ai: 'explain' },
+  aiSummarise: { title: 'Summarise', sub: 'Quick AI', icon: 'i-lucide-scroll-text', kind: 'cmd', ai: 'summarise' },
+  aiCommit: { title: 'Write Commit Message', sub: 'Quick AI', icon: 'i-lucide-git-commit-horizontal', kind: 'cmd', ai: 'commit' },
   lock: { title: 'Lock Screen', sub: 'System', icon: 'i-lucide-lock', kind: 'sys' },
   theme: { title: 'Toggle Light / Dark', sub: 'System · Appearance', icon: 'i-lucide-sun-moon', kind: 'sys', go: 'theme' },
   settings: { title: 'Esky Settings', sub: 'Preferences', icon: 'i-lucide-settings', kind: 'cmd', keys: ['Ctrl', ','], go: 'settings' },
+  shortcuts: { title: 'Keyboard Shortcuts', sub: 'Esky Settings', icon: 'i-lucide-keyboard', kind: 'cmd', go: 'shortcuts' },
   notes: { title: 'laravel-upgrade-notes.md', sub: 'Documents › Notes', icon: 'i-lucide-file-text', tile: '#52525B', kind: 'file' },
   solar: { title: 'Supplier-invoice-2026.pdf', sub: 'Downloads', icon: 'i-lucide-file', tile: '#B91C1C', kind: 'file' },
   invoices: { title: 'invoices-2026-Q3.xlsx', sub: 'Documents › Finance', icon: 'i-lucide-file-spreadsheet', tile: '#15803D', kind: 'file' }
 }
 
-export const RECENT = ['forgeSearch', 'figma', 'ai', 'invoices']
+export const RECENT: string[] = []
 export const SUGGEST = ['grammar', 'theme', 'settings']
-export const FAVS = ['vscode', 'terminal', 'herd', 'clip']
+// File Explorer and Windows Terminal are on every Windows 11 PC; missing ones are skipped.
+export const FAVS = ['app:Microsoft.Windows.Explorer', 'app:Microsoft.WindowsTerminal_8wekyb3d8bbwe!App', 'clip']
 
 export const KIND_LABEL: Record<string, string> = { app: 'Application', cmd: 'Command', file: 'File', link: 'Quicklink', snip: 'Snippet', win: 'Window', sys: 'System' }
 
@@ -366,8 +368,9 @@ Object.assign(ITEMS, {
   eject: { title: 'Eject All Drives', sub: 'System', icon: 'i-lucide-usb', kind: 'sys' }
 } satisfies Record<string, Item>)
 
+// No default system-wide hotkeys: window layouts don't move windows yet, and the keys would be taken from other apps.
 WIN_CMDS.forEach((w) => {
-  ITEMS[w.id] = { title: w.title, sub: 'Window Management', icon: w.icon, kind: 'win', keys: w.keys, win: w }
+  ITEMS[w.id] = { title: w.title, sub: 'Window Management', icon: w.icon, kind: 'win', win: w }
 })
 QLINKS.forEach((q) => {
   ITEMS[q.id] = { title: q.name, sub: q.url, icon: q.icon, tile: q.tile, kind: 'link', qlink: q }
@@ -376,5 +379,5 @@ SNIPS.forEach((x) => {
   ITEMS[x.id] = { title: x.name, sub: x.kw, icon: 'i-lucide-text-quote', kind: 'snip', snip: x }
 })
 
-export const USAGE_INIT: Record<string, number> = { vscode: 42, terminal: 38, clip: 31, ai: 25, herd: 20, forgeSearch: 18, sn1: 15, figma: 12, wLeft: 9, wRight: 8, wMax: 7, invoices: 4 }
-export const ALIASES_INIT: Record<string, string> = { vscode: 'code', forgeSearch: 'fs' }
+export const USAGE_INIT: Record<string, number> = {}
+export const ALIASES_INIT: Record<string, string> = { forgeSearch: 'fs' }

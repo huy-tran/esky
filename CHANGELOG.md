@@ -4,6 +4,17 @@ All notable changes to Esky are listed here. The format follows [Keep a Changelo
 
 ## Unreleased
 
+### Added
+
+- Applications: search and open everything in the Start menu (desktop and Microsoft Store apps) with their real icons; Run as Administrator, Reveal in Explorer and Copy Path.
+- Settings → Shortcuts: change Esky's hotkey, and give any command or app a system-wide hotkey or an alias, in one place. Also opens from the "Keyboard Shortcuts" command.
+- Quick AI without selected text asks for the text (filled in from the clipboard) and runs on it. Translate, Explain Code, Summarise and Write Commit Message are now in search too.
+
+### Removed
+
+- The sample applications that opened nothing.
+- Default system-wide hotkeys for features that don't work yet (Ctrl Shift V for Clipboard History, Ctrl Alt arrows for window layouts), which took those keys away from other apps.
+
 ## 0.1.0 - 2026-10-07
 
 First release.

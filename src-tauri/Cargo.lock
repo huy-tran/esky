@@ -1008,7 +1008,9 @@ checksum = "0b5343afd4a8365a643ac588dab4cf234a190c7f6c88c9f6dd6ffe00837661b7"
 name = "esky"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "keyring",
+ "png 0.18.1",
  "serde",
  "serde_json",
  "tauri",
@@ -1021,6 +1023,7 @@ dependencies = [
  "tauri-plugin-single-instance",
  "tauri-plugin-store",
  "window-vibrancy 0.6.0",
+ "windows",
 ]
 
 [[package]]

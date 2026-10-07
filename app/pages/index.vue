@@ -26,6 +26,7 @@ if (tauri) {
   onBeforeUnmount(() => unlisten.forEach(u => u()))
 
   const bindings = computed(() => {
+    void L.apps.version.value // apps can have hotkeys too, and they load after this first runs
     const list: ShortcutBinding[] = [{
       accelerator: toAccelerator(L.settings.value.hotkey),
       run: () => {
