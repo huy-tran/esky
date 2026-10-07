@@ -24,7 +24,7 @@ import { useHotkeys } from './useHotkeys'
 import { useRates } from './useRates'
 import { useQuicklinks } from './useQuicklinks'
 import { comboOf, formatBytes, phSegs, trunc, type BodySeg } from '~/utils/text'
-import { copyText, ejectDrive, floatNote, hideWindow, isTauri, openSettings, openUrl, readClipboardText, recycleBinInfo, removableDrives, revealPath, showWindow, systemAction, type SystemAction } from './usePlatform'
+import { captureTarget, clearTarget, copyText, ejectDrive, floatNote, hideWindow, isTauri, openSettings, openUrl, pasteToTarget, readClipboardText, recycleBinInfo, removableDrives, revealPath, showWindow, systemAction, type SystemAction } from './usePlatform'
 import { persistRef } from './usePersist'
 import { useSettings } from './useSettings'
 
@@ -104,6 +104,8 @@ function createLauncher() {
     query: '',
     sel: 0,
     selection: null as Selection | null,
+    /** The app Esky was opened from with a hotkey, where Paste goes. */
+    target: null as null | { app: string },
     actionsOpen: false,
     actionsQuery: '',
     actionsSel: 0,
@@ -640,7 +642,7 @@ function createLauncher() {
       list = [O('dcopy', 'Copy Definition', 'i-lucide-copy', ['↵']), O('dword', 'Copy Word', 'i-lucide-type', ['Ctrl', 'Shift', 'C']), O('dopen', 'Open in Wiktionary', 'i-lucide-external-link', ['Ctrl', 'O'])]
     } else if (s.view === 'aiResult') {
       target = aiCmd().title
-      list = s.ai?.needsInput ? [O('airun', 'Run', 'i-lucide-play', ['↵'])] : [O('aipaste', 'Copy and Close', 'i-lucide-clipboard-copy', ['↵']), O('aicopy', 'Copy', 'i-lucide-copy', ['Ctrl', 'C']), O('aichat', 'Continue in Chat', 'i-lucide-message-square', ['Tab']), O('regen', 'Regenerate', 'i-lucide-refresh-cw', ['Ctrl', 'R'])]
+      list = s.ai?.needsInput ? [O('airun', 'Run', 'i-lucide-play', ['↵'])] : [s.target ? O('aipaste', `Paste into ${s.target.app}`, 'i-lucide-clipboard-paste', ['↵']) : O('aipaste', 'Copy and Close', 'i-lucide-clipboard-copy', ['↵']), O('aicopy', 'Copy', 'i-lucide-copy', ['Ctrl', 'C']), O('aichat', 'Continue in Chat', 'i-lucide-message-square', ['Tab']), O('regen', 'Regenerate', 'i-lucide-refresh-cw', ['Ctrl', 'R'])]
     } else if (SPLIT[s.view] || s.view === 'emoji') {
       const x = s.view === 'emoji' ? curEmoji() : curSplit()
       const any = x as Record<string, any> | undefined
@@ -673,6 +675,82 @@ function createLauncher() {
 
   function openWin() {
     Object.assign(s, { open: true, view: 'search', query: '', sel: 0, actionsOpen: false })
+  }
+
+  /** The app's name for a path from captureTarget: its Start menu name if Esky knows it, else the .exe name. */
+  function appNameFor(path: string | null) {
+    if (!path) return 'another app'
+    const p = path.toLowerCase()
+    const known = Object.values(ITEMS).find(it => it.app?.path?.toLowerCase() === p)
+    return known?.title ?? path.split(/[\\/]/).pop()!.replace(/\.exe$/i, '')
+  }
+
+  /**
+   * Remember the app in front (so Paste can go back to it) and read what's selected there, for
+   * Quick AI. Used when Esky opens from a hotkey; the tray has no app to come back to.
+   */
+  async function captureFrom(readSelection: boolean) {
+    s.target = null
+    s.selection = null
+    if (!isTauri()) return
+    try {
+      const t = await captureTarget(readSelection)
+      if (!t.app_path) return
+      const app = appNameFor(t.app_path)
+      s.target = { app }
+      if (t.selection) s.selection = { text: t.selection, app }
+    } catch {
+      // Opening Esky matters more than the selection.
+    }
+  }
+
+  /** Esky's hotkey. */
+  async function openFromHotkey() {
+    await captureFrom(settings.value.readSelection)
+    openWin()
+  }
+
+  /** The tray, or a second launch of Esky. */
+  function openFromTray() {
+    s.target = null
+    s.selection = null
+    clearTarget()
+    openWin()
+  }
+
+  /** A command's own hotkey, pressed while Esky is hidden. Quick AI commands work on the selection. */
+  async function activateFromHotkey(id: string) {
+    await captureFrom(!!ITEMS[id]?.ai && settings.value.readSelection)
+    activate(id)
+  }
+
+  /** A snippet's text with {date}, {time} and {clipboard} filled in, and {cursor} dropped. */
+  async function snippetText(text: string) {
+    const now = new Date()
+    let out = text
+      .replace(/\{date\}/g, now.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }))
+      .replace(/\{time\}/g, now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }))
+      .replace(/\{cursor\}/g, '')
+    if (out.includes('{clipboard}')) out = out.replace(/\{clipboard\}/g, await readClipboardText())
+    return out
+  }
+
+  async function pasteSnippet(n: Snippet) {
+    pasteText(await snippetText(n.text), n.name)
+  }
+
+  /**
+   * Put `text` into the app Esky was opened from (as if typed), then hide. Without one (opened from
+   * the tray, or the browser preview) it's copied instead, ready for Ctrl V.
+   */
+  function pasteText(text: string, what: string) {
+    if (!isTauri() || !s.target) return closeWith(`Copied ${what}. Paste it with Ctrl V.`, () => copyText(text))
+    const app = s.target.app
+    closeWith(`Pasted ${what} into ${app}`, () => pasteToTarget(text).catch((e) => {
+      copyText(text)
+      s.open = true
+      toast('error', `Couldn’t paste into ${app}`, `${String(e)}. It's on the clipboard instead.`)
+    }))
   }
 
   /** Run the action, then hide Esky. `msg` describes what happened (shown as a notice in the browser build). */
@@ -716,7 +794,7 @@ function createLauncher() {
       go('quicklinks', { splitQuery: '', splitSel: Math.max(0, qls.list.value.findIndex(x => x.id === q.id)) })
       return focusArg()
     }
-    if (it.snip) return closeWith(`Pasted ${it.snip.kw} · ${it.snip.name}`)
+    if (it.snip) return pasteSnippet(it.snip)
     if (it.win) return applyWin(it.win)
     const ec = !it.go ? commandFor(id) : null
     if (ec) {
@@ -778,7 +856,7 @@ function createLauncher() {
     switch (s.view) {
       case 'snippets': {
         const n = x as Snippet
-        return closeWith(`Pasted ${n.kw} · ${n.name}`)
+        return pasteSnippet(n)
       }
       case 'quicklinks': {
         const n = x as Quicklink
@@ -1261,7 +1339,7 @@ function createLauncher() {
       case 'sncopy': {
         const x = curSplit() as Snippet | undefined
         if (x) {
-          copyText(x.text)
+          snippetText(x.text).then(copyText)
           toast('success', 'Snippet copied', x.name)
         }
         break
@@ -1314,7 +1392,7 @@ function createLauncher() {
       case 'ndelete': deleteNote(); break
       case 'epaste': {
         const x = curEmoji()
-        if (x) closeWith(`Pasted ${x.e}`)
+        if (x) pasteText(x.e, x.e)
         break
       }
       case 'ecopy': {
@@ -1369,8 +1447,7 @@ function createLauncher() {
       case 'togglechats': s.showChats = !s.showChats; break
       case 'attach': attachClip(); break
       case 'aipaste':
-        // Typing into the other app isn't wired up yet, so the result goes on the clipboard.
-        if (s.ai?.result) closeWith(`Copied the ${aiCmd().title.toLowerCase()} result. Paste it with Ctrl V.`, () => copyText(s.ai!.result!))
+        if (s.ai?.result) pasteText(s.ai.result, `the ${aiCmd().title.toLowerCase()} result`)
         break
       case 'aicopy':
         if (s.ai?.result) {
@@ -1921,7 +1998,7 @@ function createLauncher() {
       const cur = m.flat[Math.min(s.sel, Math.max(0, m.flat.length - 1))]
       const lbl = !cur ? 'Open' : cur.kind === 'card' ? 'Copy' : cur.kind === 'chat' ? 'Chat' : cur.kind === 'dict' ? 'Define' : cur.kind === 'snip' ? 'Paste' : cur.kind === 'win' ? 'Apply' : ['cmd', 'ai', 'sys'].includes(cur.kind || '') ? 'Run' : 'Open'
       return {
-        app: s.selection ? { icon: 'i-lucide-message-square', tile: '#4A154B', name: 'Slack · text selected' } : LP,
+        app: s.selection ? { icon: 'i-lucide-text-cursor-input', tile: 'var(--accent)', name: `${s.selection.app} · text selected` } : LP,
         hints: [hint(lbl, cur && cur.kind === 'chat' && s.query.trim().toLowerCase().startsWith('ai') ? ['Tab'] : ['↵'], () => cur?.run(), true), act]
       }
     }
@@ -1932,7 +2009,7 @@ function createLauncher() {
         : [hint('Check again', ['↵'], checkAgain, true), hint('Back', ['Esc'], back)] }
     }
     if (v === 'aiResult' && s.ai?.needsInput) return { app: { icon: 'i-lucide-sparkles', tile: 'var(--accent)', name: 'Quick AI' }, hints: [hint('Run', ['↵'], () => runAction('airun'), true), hint('New line', ['Shift', '↵']), hint('Back', ['Esc'], back)] }
-    if (v === 'aiResult') return { app: { icon: 'i-lucide-sparkles', tile: 'var(--accent)', name: 'Quick AI' }, hints: [hint('Copy and Close', ['↵'], () => runAction('aipaste'), true), hint('Copy', ['Ctrl', 'C'], () => runAction('aicopy')), hint('Continue in Chat', ['Tab'], () => runAction('aichat')), hint('Regenerate', ['Ctrl', 'R'], () => runAction('regen'))] }
+    if (v === 'aiResult') return { app: { icon: 'i-lucide-sparkles', tile: 'var(--accent)', name: 'Quick AI' }, hints: [hint(s.target ? 'Paste' : 'Copy and Close', ['↵'], () => runAction('aipaste'), true), hint('Copy', ['Ctrl', 'C'], () => runAction('aicopy')), hint('Continue in Chat', ['Tab'], () => runAction('aichat')), hint('Regenerate', ['Ctrl', 'R'], () => runAction('regen'))] }
     if (v === 'herdList') return { app: { icon: 'i-lucide-feather', tile: '#E11D48', name: 'Laravel Herd' }, hints: [hint('Open', ['↵'], () => runAction('hopen'), true), hint(herdEditor().short, ['Ctrl', 'O'], () => runAction('hcode')), act] }
     if (v === 'gitList') return { app: { icon: 'i-lucide-git-branch', tile: '#F05032', name: 'Git' }, hints: [hint(editorFor('git').short, ['↵'], () => runAction('gopen'), true), hint('Terminal', ['Ctrl', 'T'], () => runAction('gterm')), act] }
     if (v === 'password') return { app: { icon: 'i-lucide-key-round', tile: '#175DDC', name: 'Password Generator' }, hints: [hint('Copy', ['↵'], () => runAction('pwcopy'), true), hint('Regenerate', ['Ctrl', 'R'], () => runAction('pwnew')), act] }
@@ -1987,7 +2064,7 @@ function createLauncher() {
     apps, qls, herd, herdModel, openSite, git, gitModel, pw, copyPassword, dict, dictFlat, openDictionary,
     chats, chatGroups, openSavedChat, claude,
     curClip, curSplit, curEmoji, detail, aiCmd, rowKeys, comboOwner, aliasOwner,
-    toast, focus, go, openWin, back, closeWith, activate, runAction, runSplit, openActions,
+    toast, focus, go, openWin, openFromHotkey, openFromTray, activateFromHotkey, back, closeWith, activate, runAction, runSplit, openActions,
     onKey, saveHk, clearHk, saveAl, cfOk, sysConfirm, openChat, runAi, onbNext, onbBack, onbSkip, checkAgain, attachClip, newChat, send,
     submitDeploy, openDeploy, toggleOrig, editNote, theme
   }

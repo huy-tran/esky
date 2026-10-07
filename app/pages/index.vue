@@ -21,7 +21,7 @@ if (tauri) {
     }))
     // Tray icon, tray menu and a second launch of the app all ask the launcher to open.
     const { listen } = await import('@tauri-apps/api/event')
-    unlisten.push(await listen('esky://show', () => L.openWin()))
+    unlisten.push(await listen('esky://show', () => L.openFromTray()))
   })
   onBeforeUnmount(() => unlisten.forEach(u => u()))
 
@@ -32,7 +32,7 @@ if (tauri) {
       accelerator: toAccelerator(L.settings.value.hotkey),
       run: () => {
         if (s.open) s.open = false
-        else L.openWin()
+        else L.openFromHotkey()
       }
     }]
     for (const id of Object.keys(ITEMS)) {
@@ -40,7 +40,7 @@ if (tauri) {
       if (id === 'settings') continue
       const ks = L.rowKeys(id)
       if (ks && ks.length > 1 && MODS.includes(ks[0]!)) {
-        list.push({ accelerator: toAccelerator(ks), run: () => L.activate(id) })
+        list.push({ accelerator: toAccelerator(ks), run: () => L.activateFromHotkey(id) })
       }
     }
     return list

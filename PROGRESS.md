@@ -31,6 +31,7 @@ Last updated: 6 Oct 2026 (Git, Password Generator, Script Commands dropped).
 - [x] Settings → Shortcuts: Esky's hotkey plus a hotkey and alias for every command and app (`app/composables/useHotkeys.ts` holds the rules for both windows)
 - [x] Quicklinks you edit (Settings → Quicklinks); live currency rates (open.er-api.com, cached 6 hours); "Check for updates" against GitHub releases (repo passed in by the release workflow); Store installs are instant; onboarding shows real counts and saves every choice
 - [x] System commands: Lock, Sleep, Restart, Shut Down, Sign Out (shutdown.exe), Empty Recycle Bin (with its real size), Eject All Drives; Do Not Disturb opens notification settings (no public API). Rust `system.rs`
+- [x] Paste into the app Esky was opened from (Snippets, Emoji, Quick AI) and read its selected text for Quick AI: Esky sends Ctrl C / Ctrl V to that window and restores the clipboard afterwards. Rust `input.rs`; the window is remembered in Rust, so the page can only paste into the app you came from
 - [x] Git → Uncommitted Changes: repos with uncommitted changes or unpushed commits in the folders set in Settings → Extensions → Git (default `~\Herd`, `~\Frontend`); changed files, branch, open in editor or Windows Terminal. Rust `git_status` / `open_terminal` in the app, `server/api/git/status.get.ts` in the browser
 - [x] Password Generator: password or passphrase with Bitwarden's options, defaults and rules (EFF long word list); options are saved, generated values never are
 
@@ -49,9 +50,8 @@ Last updated: 6 Oct 2026 (Git, Password Generator, Script Commands dropped).
 | Clipboard History | 9 sample items; nothing is recorded; Paste does nothing; Clipboard settings tab is saved but unused |
 | Snippets | 7 samples you can't edit; Paste does nothing; no keyword expansion in other apps (Copy works) |
 | Window layouts | Applying a layout moves nothing |
-| Emoji | Paste does nothing (Copy works) |
 | Laravel Forge | 6 sample servers; Deploy is a timed fake; SSH does nothing; the API token is never used |
-| Quick AI input | Selected text in other apps is not read (you paste or type the text instead); ↵ copies the result rather than pasting it back |
+| Snippets typed-keyword expansion | Not built yet (see Snippets) |
 | Colour Picker, Media Controls, Docker | Commands are fakes (preference forms work) |
 | Settings → AI | The API-key backend isn't connected |
 

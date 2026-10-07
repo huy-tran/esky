@@ -183,3 +183,14 @@ export const systemAction = (action: SystemAction) => invokeDesktop<void>('syste
 export const recycleBinInfo = () => invokeDesktop<{ items: number, bytes: number }>('recycle_bin_info')
 export const removableDrives = () => invokeDesktop<{ letter: string, label: string }[]>('removable_drives')
 export const ejectDrive = (letter: string) => invokeDesktop<void>('eject_drive', { letter })
+
+// The app you were in before Esky opened (desktop app; see src-tauri/src/input.rs).
+
+export interface CapturedTarget { app_path: string | null, selection: string | null }
+
+/** Remember the app in front and, if `readSelection`, read its selected text. Call before showing the launcher. */
+export const captureTarget = (readSelection: boolean) => invokeDesktop<CapturedTarget>('capture_target', { readSelection })
+/** Forget it (opened from the tray: there's nothing to paste into). */
+export const clearTarget = () => isTauri() ? invokeDesktop<void>('clear_target') : Promise.resolve()
+/** Paste into that app. Hide the launcher first. */
+export const pasteToTarget = (text: string) => invokeDesktop<void>('paste_to_target', { text })

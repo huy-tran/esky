@@ -32,7 +32,8 @@ const generalSwitches: [keyof SettingsState, string, string][] = [
   ['activeMonitor', 'Show on active monitor', 'Opens on the screen with your mouse cursor instead of the primary display.'],
   ['closeBlur', 'Close when focus is lost', 'Hides the window when you click outside it.'],
   ['desktopApps', 'Search desktop apps', 'Apps from the Start menu show up in search.'],
-  ['storeApps', 'Search Microsoft Store apps', 'Apps installed from the Microsoft Store show up in search.']
+  ['storeApps', 'Search Microsoft Store apps', 'Apps installed from the Microsoft Store show up in search.'],
+  ['readSelection', 'Read selected text', 'When you open Esky with your hotkey, Quick AI gets what you had selected in that app. Esky copies it with Ctrl C and puts your clipboard back.']
 ]
 
 watch(() => S.value.startLogin, on => setAutostart(on))

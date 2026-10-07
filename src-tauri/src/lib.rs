@@ -400,6 +400,39 @@ async fn eject_drive(letter: String) -> Result<(), String> {
     blocking(move || system::eject(&letter)).await?
 }
 
+// The app you were in before Esky opened (see input.rs).
+
+#[cfg(windows)]
+mod input;
+
+/// That app's window, kept here so the page can only ever paste into the app you came from.
+#[derive(Default)]
+struct PasteTarget(Mutex<Option<isize>>);
+
+/// Call just before showing the launcher from a hotkey: remembers the app in front and, if
+/// `read_selection`, reads what's selected in it.
+#[cfg(windows)]
+#[tauri::command]
+async fn capture_target(app: AppHandle, read_selection: bool) -> Result<input::Target, String> {
+    let (hwnd, target) = blocking(move || input::capture(read_selection)).await?;
+    *app.state::<PasteTarget>().0.lock().unwrap() = hwnd;
+    Ok(target)
+}
+
+/// Forget the remembered app (Esky opened from the tray, where there's nothing to paste into).
+#[tauri::command]
+fn clear_target(app: AppHandle) {
+    *app.state::<PasteTarget>().0.lock().unwrap() = None;
+}
+
+/// Paste `text` into the remembered app. Hide the launcher first.
+#[cfg(windows)]
+#[tauri::command]
+async fn paste_to_target(app: AppHandle, text: String) -> Result<(), String> {
+    let target = app.state::<PasteTarget>().0.lock().unwrap().ok_or("There's no app to paste into")?;
+    blocking(move || input::paste(target, &text)).await?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -417,6 +450,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .manage(ClaudeRuns::default())
         .manage(KnownApps::default())
+        .manage(PasteTarget::default())
         .invoke_handler(tauri::generate_handler![
             secret_get,
             secret_set,
@@ -432,7 +466,10 @@ pub fn run() {
             system_action,
             recycle_bin_info,
             removable_drives,
-            eject_drive
+            eject_drive,
+            capture_target,
+            clear_target,
+            paste_to_target
         ])
         .setup(|app| {
             let window = app
