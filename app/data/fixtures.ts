@@ -102,42 +102,8 @@ export const UNITS: Record<string, [string, number, string]> = { km: ['len', 100
 
 export const DIM: Record<string, string> = { len: 'Length', mass: 'Mass', temp: 'Temperature', vol: 'Volume' }
 
-export type ClipType = 'text' | 'link' | 'image' | 'color' | 'file'
 
-export interface ClipItem {
-  id: string
-  type: ClipType
-  preview: string
-  full?: string
-  mono?: boolean
-  app: string
-  appIcon: string
-  appTile: string
-  time: string
-  copiedAt: string
-  size: string
-  pinned?: boolean
-  day: 'today' | 'yesterday'
-  host?: string
-  path?: string
-  rgb?: string
-  hsl?: string
-}
 
-export const CLIP_INIT: ClipItem[] = [
-  { id: 'c1', type: 'text', preview: 'ssh forge@170.64.132.18', mono: true, app: 'Windows Terminal', appIcon: 'i-lucide-square-terminal', appTile: '#3F3F46', time: 'Mon 09:12', copiedAt: 'Mon 6 Oct, 09:12', size: '23 characters', pinned: true, day: 'today' },
-  { id: 'c2', type: 'color', preview: '#4ADE80', app: 'Figma', appIcon: 'i-lucide-pen-tool', appTile: '#7C3AED', time: 'Fri 15:30', copiedAt: 'Fri 3 Oct, 15:30', size: '7 characters', pinned: true, day: 'yesterday', rgb: 'rgb(99, 102, 241)', hsl: 'hsl(239, 84%, 67%)' },
-  { id: 'c3', type: 'link', preview: 'https://ui.nuxt.com/components/command-palette', host: 'ui.nuxt.com', app: 'Microsoft Edge', appIcon: 'i-lucide-globe', appTile: '#0284C7', time: '10:42', copiedAt: 'Today, 10:42', size: '47 characters', day: 'today' },
-  { id: 'c4', type: 'image', preview: 'Screenshot 2026-10-05 104012.png', app: 'Snipping Tool', appIcon: 'i-lucide-scissors', appTile: '#DB2777', time: '10:40', copiedAt: 'Today, 10:40', size: '1280×720 · 184 KB', day: 'today' },
-  { id: 'c5', type: 'text', mono: true, preview: 'Route::middleware(\'auth\')->group(function () {', full: 'Route::middleware(\'auth\')->group(function () {\n    Route::get(\'/orders\', [OrderController::class, \'index\']);\n    Route::delete(\'/orders/{order}\', [OrderController::class, \'destroy\']);\n});', app: 'Visual Studio Code', appIcon: 'i-lucide-code-xml', appTile: '#2563EB', time: '09:58', copiedAt: 'Today, 09:58', size: '4 lines · 171 characters', day: 'today' },
-  { id: 'c6', type: 'file', preview: 'invoices-2026-Q3.xlsx', path: 'C:\\Users\\alex\\Documents\\Finance', app: 'File Explorer', appIcon: 'i-lucide-folder-open', appTile: '#CA8A04', time: '09:15', copiedAt: 'Today, 09:15', size: '48 KB', day: 'today' },
-  { id: 'c7', type: 'text', preview: 'Thanks Alex, the revised quote looks good. Let\'s go ahead with the fixed-price option.', app: 'Outlook', appIcon: 'i-lucide-mail', appTile: '#0369A1', time: '16:20', copiedAt: 'Yesterday, 16:20', size: '86 characters', day: 'yesterday' },
-  { id: 'c8', type: 'color', preview: '#F59E0B', app: 'Figma', appIcon: 'i-lucide-pen-tool', appTile: '#7C3AED', time: '14:02', copiedAt: 'Yesterday, 14:02', size: '7 characters', day: 'yesterday', rgb: 'rgb(245, 158, 11)', hsl: 'hsl(38, 92%, 50%)' },
-  { id: 'c9', type: 'link', preview: 'https://github.com/tauri-apps/tauri/issues/9921', host: 'github.com', app: 'Microsoft Edge', appIcon: 'i-lucide-globe', appTile: '#0284C7', time: '11:30', copiedAt: 'Yesterday, 11:30', size: '47 characters', day: 'yesterday' }
-]
-
-export const CLIP_ICON: Record<ClipType, string> = { text: 'i-lucide-type', link: 'i-lucide-link', image: 'i-lucide-image', color: 'i-lucide-palette', file: 'i-lucide-file' }
-export const CLIP_LABEL: Record<ClipType, string> = { text: 'Text', link: 'Link', image: 'Image', color: 'Colour', file: 'File' }
 
 export type ServerStatus = 'active' | 'provisioning' | 'stopped'
 

@@ -32,6 +32,7 @@ Last updated: 6 Oct 2026 (Git, Password Generator, Script Commands dropped).
 - [x] Quicklinks you edit (Settings → Quicklinks); live currency rates (open.er-api.com, cached 6 hours); "Check for updates" against GitHub releases (repo passed in by the release workflow); Store installs are instant; onboarding shows real counts and saves every choice
 - [x] System commands: Lock, Sleep, Restart, Shut Down, Sign Out (shutdown.exe), Empty Recycle Bin (with its real size), Eject All Drives; Do Not Disturb opens notification settings (no public API). Rust `system.rs`
 - [x] Paste into the app Esky was opened from (Snippets, Emoji, Quick AI) and read its selected text for Quick AI: Esky sends Ctrl C / Ctrl V to that window and restores the clipboard afterwards. Rust `input.rs`; the window is remembered in Rust, so the page can only paste into the app you came from
+- [x] Clipboard History: text, links, colours, images (saved as PNG in the app data folder) and files; paste back into the app you came from; pin, delete, clear; Settings → Clipboard (on/off, length, age, password managers via Windows' "don't record" clipboard flag, ignored apps). Rust `clipboard.rs` polls the clipboard change counter
 - [x] Git → Uncommitted Changes: repos with uncommitted changes or unpushed commits in the folders set in Settings → Extensions → Git (default `~\Herd`, `~\Frontend`); changed files, branch, open in editor or Windows Terminal. Rust `git_status` / `open_terminal` in the app, `server/api/git/status.get.ts` in the browser
 - [x] Password Generator: password or passphrase with Bitwarden's options, defaults and rules (EFF long word list); options are saved, generated values never are
 
@@ -47,7 +48,6 @@ Last updated: 6 Oct 2026 (Git, Password Generator, Script Commands dropped).
 |---|---|
 | Search Files | 8 sample files; Open / Open With do nothing; Reveal and Copy Path use fake paths |
 | GitHub, Jira, Sentry extensions | Commands only open a web page; the saved tokens are never used |
-| Clipboard History | 9 sample items; nothing is recorded; Paste does nothing; Clipboard settings tab is saved but unused |
 | Snippets | 7 samples you can't edit; Paste does nothing; no keyword expansion in other apps (Copy works) |
 | Window layouts | Applying a layout moves nothing |
 | Laravel Forge | 6 sample servers; Deploy is a timed fake; SSH does nothing; the API token is never used |
@@ -59,7 +59,7 @@ Last updated: 6 Oct 2026 (Git, Password Generator, Script Commands dropped).
 
 1. [x] Install Rust and the Visual Studio C++ Build Tools, build the desktop app: `npm run tauri:dev`.
 2. [x] Real app search and launching: Start menu shortcuts, Microsoft Store apps.
-3. [ ] Real Clipboard History: watch the clipboard, honour the ignore list and history settings, paste back. Don't record values copied from the Password Generator.
+3. [x] Real Clipboard History: watch the clipboard, honour the ignore list and history settings, paste back. Values copied from the Password Generator aren't recorded.
 4. [ ] Real file search (Windows Search index or chosen folders).
 5. [ ] Paste into the previous app (needed by Snippets, Emoji, Clipboard, Quick AI) and read the selected text for Quick AI.
 6. [ ] Laravel Forge API with the saved token (servers, sites, deploy).

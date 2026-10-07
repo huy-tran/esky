@@ -1,7 +1,7 @@
 // Dev-only: open the launcher in a given state with `/?scene=<key>`. Not reachable in production builds.
-import { CLIP_INIT, ONB_TG, SEL, SERVERS, CHAT_INIT, type ChatMsg } from '~/data/fixtures'
+import { ONB_TG, SEL, SERVERS, CHAT_INIT, type ChatMsg } from '~/data/fixtures'
 
-export const SCENES = ['main', 'lar', 'actions', 'calc', 'units', 'fx', 'web', 'clip', 'clipEmpty', 'chat', 'setup', 'selection', 'aiResult', 'forgeList', 'forgeDetail', 'deploy', 'toastOk', 'toastErr', 'snippets', 'expand', 'qlinkRoot', 'quicklinks', 'windows', 'files', 'system', 'confirm', 'hotkey', 'hkConflict', 'alias', 'store', 'emoji', 'notes', 'float', 'onboard']
+export const SCENES = ['main', 'lar', 'actions', 'calc', 'units', 'fx', 'web', 'clip', 'chat', 'setup', 'selection', 'aiResult', 'forgeList', 'forgeDetail', 'deploy', 'toastOk', 'toastErr', 'snippets', 'expand', 'qlinkRoot', 'quicklinks', 'windows', 'files', 'system', 'confirm', 'hotkey', 'hkConflict', 'alias', 'store', 'emoji', 'notes', 'float', 'onboard']
 
 export function useScene(k: string) {
   const L = useLauncher()
@@ -18,10 +18,6 @@ export function useScene(k: string) {
     case 'fx': return st({ query: '100 usd to aud' })
     case 'web': return st({ query: 'g nuxt ui command palette' })
     case 'clip':
-      L.clip.value = CLIP_INIT.map(c => ({ ...c }))
-      return st({ view: 'clipboard', clipSel: 0, clipQuery: '' })
-    case 'clipEmpty':
-      L.clip.value = []
       return st({ view: 'clipboard', clipSel: 0, clipQuery: '' })
     case 'chat':
       st()

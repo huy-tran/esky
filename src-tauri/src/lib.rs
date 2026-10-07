@@ -433,6 +433,55 @@ async fn paste_to_target(app: AppHandle, text: String) -> Result<(), String> {
     blocking(move || input::paste(target, &text)).await?
 }
 
+// Clipboard History (see clipboard.rs).
+
+#[cfg(windows)]
+mod clipboard;
+
+/// Where copied images are kept, so they can be shown and pasted again.
+fn clipboard_images(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    Ok(app.path().app_data_dir().map_err(|e| e.to_string())?.join("clipboard"))
+}
+
+#[cfg(windows)]
+#[tauri::command]
+fn clipboard_watch(enabled: bool) {
+    clipboard::set_watching(enabled);
+}
+
+/// Put a history entry back on the clipboard.
+#[cfg(windows)]
+#[tauri::command]
+async fn clipboard_copy(text: Option<String>, image_file: Option<String>, files: Option<Vec<String>>) -> Result<(), String> {
+    blocking(move || clipboard::entry_formats(text, image_file, files).map(|f| input::put(&f))).await?
+}
+
+/// Paste a history entry into the app Esky was opened from.
+#[cfg(windows)]
+#[tauri::command]
+async fn clipboard_paste(app: AppHandle, text: Option<String>, image_file: Option<String>, files: Option<Vec<String>>) -> Result<(), String> {
+    let target = app.state::<PasteTarget>().0.lock().unwrap().ok_or("There's no app to paste into")?;
+    blocking(move || input::paste_formats(target, &clipboard::entry_formats(text, image_file, files)?)).await?
+}
+
+/// Delete a saved image when its history entry goes. Only files in Esky's clipboard folder.
+#[tauri::command]
+fn clipboard_forget_image(app: AppHandle, file: String) -> Result<(), String> {
+    let dir = clipboard_images(&app)?;
+    let path = std::path::PathBuf::from(&file);
+    if path.parent() != Some(dir.as_path()) {
+        return Err("Not a clipboard image".into());
+    }
+    std::fs::remove_file(path).map_err(|e| e.to_string())
+}
+
+/// Copy text that clipboard history tools (Esky's, Windows' Win+V) shouldn't keep, e.g. a new password.
+#[cfg(windows)]
+#[tauri::command]
+fn copy_private(text: String) {
+    clipboard::copy_private(&text);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -469,12 +518,21 @@ pub fn run() {
             eject_drive,
             capture_target,
             clear_target,
-            paste_to_target
+            paste_to_target,
+            clipboard_watch,
+            clipboard_copy,
+            clipboard_paste,
+            clipboard_forget_image,
+            copy_private
         ])
         .setup(|app| {
             let window = app
                 .get_webview_window("main")
                 .expect("launcher window is defined in tauri.conf.json");
+
+            // Clipboard History records once the page turns it on (it knows the setting).
+            #[cfg(windows)]
+            clipboard::start(app.handle().clone(), clipboard_images(app.handle())?);
 
             // Mica on Windows 11, Acrylic on Windows 10. The page falls back to --win-bg.
             #[cfg(target_os = "windows")]

@@ -1,9 +1,9 @@
 // Launcher state and behaviour.
 import {
-  AI_CMDS, BRANCHES, CLIP_INIT, EMOJI, FAVS, GROUPS,
+  AI_CMDS, BRANCHES, EMOJI, FAVS, GROUPS,
   ITEMS, KIND_LABEL, NOTES_INIT, ONB_HK, RECENT, SERVERS,
   SNIPS, SPLIT, SPLIT_FOOT, SPLIT_KEYS, SUGGEST, SYS_CONFIRM, USAGE_INIT, WIN_CMDS, FILES,
-  type ChatMsg, type ClipItem, type Emoji, type FileEntry, type Note, type Quicklink,
+  type ChatMsg, type Emoji, type FileEntry, type Note, type Quicklink,
   type Selection, type Server, type Snippet, type SplitView, type WinCmd
 } from '~/data/fixtures'
 import { EXTENSIONS, commandFor, extById, type ExtensionDef } from '~/extensions/registry'
@@ -19,10 +19,11 @@ import { useHerd } from './useHerd'
 import { parseFolders } from '~/utils/git'
 import { openTerminal, useGitRepos } from './useGitRepos'
 import { usePassword, wordlist } from './usePassword'
-import { useApps } from './useApps'
+import { appName, useApps } from './useApps'
 import { useHotkeys } from './useHotkeys'
 import { useRates } from './useRates'
 import { useQuicklinks } from './useQuicklinks'
+import { clipDay, clipPreview, copyPrivate, useClipboard, type ClipEntry } from './useClipboard'
 import { comboOf, formatBytes, phSegs, trunc, type BodySeg } from '~/utils/text'
 import { captureTarget, clearTarget, copyText, ejectDrive, floatNote, hideWindow, isTauri, openSettings, openUrl, pasteToTarget, readClipboardText, recycleBinInfo, removableDrives, revealPath, showWindow, systemAction, type SystemAction } from './usePlatform'
 import { persistRef } from './usePersist'
@@ -163,7 +164,8 @@ function createLauncher() {
   const exts = useExtensions()
   const installed = exts.installed
   const notes = ref<Note[]>(NOTES_INIT.map(n => ({ ...n })))
-  const clip = ref<ClipItem[]>(CLIP_INIT.map(c => ({ ...c })))
+  const clipboard = useClipboard()
+  const clip = clipboard.history
   const floatId = ref<string | null>(null)
   const chats = ref<SavedChat[]>([])
   const claude = useClaude()
@@ -177,7 +179,7 @@ function createLauncher() {
     hk.ready,
     exts.ready,
     persistRef('notes', notes),
-    persistRef('clipboard', clip),
+    clipboard.ready,
     persistRef('floatId', floatId),
     persistRef('onboarded', onboarded),
     persistRef('chats', chats)
@@ -381,7 +383,8 @@ function createLauncher() {
 
   function copyPassword(close = true) {
     if (!pw.value.value) return
-    copyText(pw.value.value)
+    // Kept out of Clipboard History and Windows' Win+V history.
+    copyPrivate(pw.value.value)
     const what = pw.opts.value.type === 'password' ? 'Password' : 'Passphrase'
     if (close) closeWith(`${what} copied`)
     else toast('success', `${what} copied`)
@@ -514,9 +517,9 @@ function createLauncher() {
 
   const clipModel = computed(() => {
     const q = s.clipQuery.trim().toLowerCase()
-    const list = clip.value.filter(c => !q || c.preview.toLowerCase().includes(q) || c.app.toLowerCase().includes(q))
-    const groups = ([['pinned', 'Pinned'], ['today', 'Today'], ['yesterday', 'Yesterday']] as const)
-      .map(([g, t]) => ({ title: t, rows: list.filter(c => (c.pinned ? 'pinned' : c.day) === g) }))
+    const list = clip.value.filter(c => !q || clipPreview(c).toLowerCase().includes(q) || (c.text ?? '').toLowerCase().includes(q) || c.app.toLowerCase().includes(q))
+    const groups = (['Pinned', 'Today', 'Yesterday', 'This week', 'Older'] as const)
+      .map(t => ({ title: t, rows: list.filter(c => (c.pinned ? 'Pinned' : clipDay(c.at)) === t) }))
       .filter(g => g.rows.length)
     return { groups, flat: groups.flatMap(g => g.rows) }
   })
@@ -617,8 +620,8 @@ function createLauncher() {
       list = [O('open', 'Open', 'i-lucide-corner-down-left', ['↵']), ...(e?.path && e.kind === 'app' ? [O('admin', 'Run as Administrator', 'i-lucide-shield', ['Ctrl', 'Shift', '↵'])] : []), ...(e?.path ? [O('reveal', 'Reveal in Explorer', 'i-lucide-folder-search', ['Ctrl', 'Shift', 'E']), O('path', 'Copy Path', 'i-lucide-copy', ['Ctrl', 'Shift', 'C'])] : []), O('pin', fav ? 'Unpin from Favourites' : 'Pin to Favourites', 'i-lucide-pin', ['Ctrl', 'Shift', 'P']), O('alias', 'Add Alias', 'i-lucide-at-sign', ['Ctrl', 'Shift', 'A']), O('hotkey', 'Set Hotkey', 'i-lucide-keyboard', ['Ctrl', 'Shift', 'H']), O('disable', 'Disable Result', 'i-lucide-eye-off', ['Ctrl', 'Shift', 'D'], true)]
     } else if (s.view === 'clipboard') {
       const c = curClip()
-      target = c ? trunc(c.preview, 40) : 'Clipboard'
-      list = [O('cpaste', 'Paste', 'i-lucide-clipboard-paste', ['↵']), O('ccopy', 'Copy', 'i-lucide-copy', ['Ctrl', 'C']), O('cpin', c?.pinned ? 'Unpin' : 'Pin', 'i-lucide-pin', ['Ctrl', 'P']), O('cdelete', 'Delete', 'i-lucide-trash-2', ['Ctrl', '⌫'], true)]
+      target = c ? trunc(clipPreview(c), 40) : 'Clipboard'
+      list = [O('cpaste', s.target ? `Paste into ${s.target.app}` : 'Copy and Close', 'i-lucide-clipboard-paste', ['↵']), O('ccopy', 'Copy', 'i-lucide-copy', ['Ctrl', 'C']), O('cpin', c?.pinned ? 'Unpin' : 'Pin', 'i-lucide-pin', ['Ctrl', 'P']), O('cdelete', 'Delete', 'i-lucide-trash-2', ['Ctrl', '⌫'], true), O('cclear', 'Clear History', 'i-lucide-eraser', [], true)]
     } else if (s.view === 'forgeList' || s.view === 'forgeDetail') {
       const sv = s.view === 'forgeList' ? forgeModel.value.flat[s.forgeSel] : s.server
       target = sv ? sv.name : ''
@@ -677,13 +680,6 @@ function createLauncher() {
     Object.assign(s, { open: true, view: 'search', query: '', sel: 0, actionsOpen: false })
   }
 
-  /** The app's name for a path from captureTarget: its Start menu name if Esky knows it, else the .exe name. */
-  function appNameFor(path: string | null) {
-    if (!path) return 'another app'
-    const p = path.toLowerCase()
-    const known = Object.values(ITEMS).find(it => it.app?.path?.toLowerCase() === p)
-    return known?.title ?? path.split(/[\\/]/).pop()!.replace(/\.exe$/i, '')
-  }
 
   /**
    * Remember the app in front (so Paste can go back to it) and read what's selected there, for
@@ -696,7 +692,7 @@ function createLauncher() {
     try {
       const t = await captureTarget(readSelection)
       if (!t.app_path) return
-      const app = appNameFor(t.app_path)
+      const app = appName(t.app_path)
       s.target = { app }
       if (t.selection) s.selection = { text: t.selection, app }
     } catch {
@@ -722,6 +718,18 @@ function createLauncher() {
   async function activateFromHotkey(id: string) {
     await captureFrom(!!ITEMS[id]?.ai && settings.value.readSelection)
     activate(id)
+  }
+
+  /** Paste a Clipboard History entry (text, image or files) back into the app Esky was opened from. */
+  function pasteClip(c: ClipEntry) {
+    const what = trunc(clipPreview(c), 40)
+    if (!isTauri() || !s.target) return closeWith(`Copied “${what}”. Paste it with Ctrl V.`, () => clipboard.copy(c))
+    const app = s.target.app
+    closeWith(`Pasted “${what}” into ${app}`, () => clipboard.paste(c).catch((e) => {
+      clipboard.copy(c)
+      s.open = true
+      toast('error', `Couldn’t paste into ${app}`, `${String(e)}. It's on the clipboard instead.`)
+    }))
   }
 
   /** A snippet's text with {date}, {time} and {clipboard} filled in, and {cursor} dropped. */
@@ -1414,27 +1422,31 @@ function createLauncher() {
         toast('info', 'Result disabled', e.title, { label: 'Undo', run: () => { disabled.value = disabled.value.filter(x => x !== id2) } })
         break
       }
-      case 'cpaste': if (c) closeWith(`Pasted “${trunc(c.preview, 40)}”`); break
+      case 'cpaste': if (c) pasteClip(c); break
       case 'ccopy': if (c) {
-        copyText(c.full || c.preview)
-        toast('success', 'Copied to clipboard', trunc(c.preview, 48))
+        clipboard.copy(c).then(() => toast('success', 'Copied to clipboard', trunc(clipPreview(c), 48)))
       } break
       case 'cpin': {
         if (!c) break
-        clip.value = clip.value.map(x => x.id === c.id ? { ...x, pinned: !x.pinned } : x)
+        clipboard.togglePin(c.id)
         nextTick(() => { s.clipSel = Math.max(0, clipModel.value.flat.findIndex(x => x.id === c.id)) })
-        toast('success', c.pinned ? 'Unpinned' : 'Pinned', trunc(c.preview, 48))
+        toast('success', c.pinned ? 'Unpinned' : 'Pinned', trunc(clipPreview(c), 48))
         break
       }
       case 'cdelete': {
         if (!c) break
-        const old = clip.value
-        const next = clip.value.filter(x => x.id !== c.id)
-        clip.value = next
-        s.clipSel = Math.max(0, Math.min(s.clipSel, next.length - 1))
-        toast('info', 'Deleted from history', trunc(c.preview, 48), { label: 'Undo', run: () => { clip.value = old } })
+        clipboard.remove(c.id)
+        s.clipSel = Math.max(0, Math.min(s.clipSel, clipModel.value.flat.length - 1))
+        toast('info', 'Deleted from history', trunc(clipPreview(c), 48))
         break
       }
+      case 'cclear':
+        s.confirm = { title: 'Clear Clipboard History?', desc: 'Everything except pinned entries is deleted from this PC.', label: 'Clear History', run: () => {
+          clipboard.clear()
+          s.clipSel = 0
+          toast('info', 'Clipboard History cleared')
+        } }
+        break
       case 'fopen': if (sv) go('forgeDetail', { server: sv }); break
       case 'fdeploy': if (sv) openDeploy(sv, s.view); break
       case 'fforge': if (sv) closeWith(`Opened ${sv.name} in Laravel Forge`, () => openUrl('https://forge.laravel.com/servers')); break
@@ -1780,9 +1792,9 @@ function createLauncher() {
         runAction('cdelete')
       } else if (ctrl && kl === 'o' && n) {
         const c = curClip()
-        if (c?.type === 'link') {
+        if (c?.kind === 'link' && c.text) {
           stop()
-          closeWith(`Opened ${c.host} in your browser`, () => openUrl(c.preview))
+          closeWith(`Opened ${new URL(c.text).host} in your browser`, () => openUrl(c.text!.trim()))
         }
       }
       return
@@ -2002,7 +2014,7 @@ function createLauncher() {
         hints: [hint(lbl, cur && cur.kind === 'chat' && s.query.trim().toLowerCase().startsWith('ai') ? ['Tab'] : ['↵'], () => cur?.run(), true), act]
       }
     }
-    if (v === 'clipboard') return { app: { icon: 'i-lucide-clipboard-list', tile: '#0D9488', name: 'Clipboard History' }, hints: [hint('Paste', ['↵'], () => runAction('cpaste'), true), hint('Copy', ['Ctrl', 'C'], () => runAction('ccopy')), hint('Pin', ['Ctrl', 'P'], () => runAction('cpin')), hint('Delete', ['Ctrl', '⌫'], () => runAction('cdelete'))] }
+    if (v === 'clipboard') return { app: { icon: 'i-lucide-clipboard-list', tile: '#0D9488', name: 'Clipboard History' }, hints: [hint(s.target ? 'Paste' : 'Copy and Close', ['↵'], () => runAction('cpaste'), true), hint('Copy', ['Ctrl', 'C'], () => runAction('ccopy')), hint('Pin', ['Ctrl', 'P'], () => runAction('cpin')), hint('Delete', ['Ctrl', '⌫'], () => runAction('cdelete'))] }
     if (v === 'chat') {
       return { app: { icon: 'i-lucide-sparkles', tile: 'var(--accent)', name: 'AI Chat' }, hints: s.claudeReady
         ? [hint('Send', ['↵'], () => send(), true), hint('New line', ['Shift', '↵']), hint('Chats', ['Ctrl', 'B'], () => { s.showChats = !s.showChats }), act]
@@ -2050,6 +2062,7 @@ function createLauncher() {
     if (floatId.value) floatNote(floatId.value)
     apps.load()
     rates.refresh()
+    clipboard.start()
     // Herd sites also appear in root search.
     if (exts.isActive('herd')) loadHerd()
     // A different Herd config folder (set in Settings) means a different site list.

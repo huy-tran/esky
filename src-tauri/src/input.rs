@@ -19,7 +19,23 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
 };
 use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId, IsWindow, SetForegroundWindow};
 
-const CF_UNICODETEXT: u32 = 13;
+pub const CF_UNICODETEXT: u32 = 13;
+
+/// Until when clipboard changes are Esky's own (pasting, reading a selection), so Clipboard
+/// History doesn't record them.
+static QUIET_UNTIL: std::sync::Mutex<Option<Instant>> = std::sync::Mutex::new(None);
+
+fn quiet_for(ms: u64) {
+    let until = Instant::now() + Duration::from_millis(ms);
+    let mut q = QUIET_UNTIL.lock().unwrap();
+    if q.map_or(true, |t| t < until) {
+        *q = Some(until);
+    }
+}
+
+pub fn is_quiet() -> bool {
+    QUIET_UNTIL.lock().unwrap().is_some_and(|t| Instant::now() < t)
+}
 /// Formats that are GDI handles rather than memory; Windows recreates them from CF_DIB / CF_TEXT.
 const GDI_FORMATS: [u32; 4] = [2, 3, 9, 14]; // BITMAP, METAFILEPICT, PALETTE, ENHMETAFILE
 
@@ -54,7 +70,7 @@ fn send_ctrl(vk: VIRTUAL_KEY) {
     unsafe { SendInput(&inputs, std::mem::size_of::<INPUT>() as i32) };
 }
 
-fn open_clipboard() -> bool {
+pub fn open_clipboard() -> bool {
     // Another app may be holding it for a moment.
     for _ in 0..20 {
         if unsafe { OpenClipboard(None) }.is_ok() {
@@ -66,9 +82,9 @@ fn open_clipboard() -> bool {
 }
 
 /// Everything on the clipboard, format by format, so it can be put back.
-type Snapshot = Vec<(u32, Vec<u8>)>;
+pub type Snapshot = Vec<(u32, Vec<u8>)>;
 
-fn snapshot() -> Snapshot {
+pub fn snapshot() -> Snapshot {
     let mut out = Vec::new();
     if !open_clipboard() {
         return out;
@@ -94,7 +110,7 @@ fn snapshot() -> Snapshot {
     out
 }
 
-fn put(formats: &Snapshot) {
+pub fn put(formats: &Snapshot) {
     if !open_clipboard() {
         return;
     }
@@ -115,11 +131,11 @@ fn put(formats: &Snapshot) {
     }
 }
 
-fn utf16(text: &str) -> Vec<u8> {
+pub fn utf16(text: &str) -> Vec<u8> {
     text.encode_utf16().chain(std::iter::once(0)).flat_map(u16::to_le_bytes).collect()
 }
 
-fn read_text() -> Option<String> {
+pub fn read_text() -> Option<String> {
     if !open_clipboard() {
         return None;
     }
@@ -167,6 +183,7 @@ pub fn capture(read_selection: bool) -> (Option<isize>, Target) {
     let app_path = exe_of(hwnd);
     let mut selection = None;
     if read_selection {
+        quiet_for(800);
         let before = snapshot();
         let seq = unsafe { GetClipboardSequenceNumber() };
         send_ctrl(VK_C);
@@ -187,12 +204,18 @@ pub fn capture(read_selection: bool) -> (Option<isize>, Target) {
 
 /// Put `text` into the remembered app as if typed: clipboard, Ctrl V, then the old clipboard back.
 pub fn paste(target: isize, text: &str) -> Result<(), String> {
+    paste_formats(target, &vec![(CF_UNICODETEXT, utf16(text))])
+}
+
+/// Paste any clipboard content (text, an image, files) into the remembered app.
+pub fn paste_formats(target: isize, formats: &Snapshot) -> Result<(), String> {
     let hwnd = HWND(target as *mut _);
     if !unsafe { IsWindow(Some(hwnd)) }.as_bool() {
         return Err("That window has closed".into());
     }
+    quiet_for(1200);
     let before = snapshot();
-    put(&vec![(CF_UNICODETEXT, utf16(text))]);
+    put(formats);
     // Esky hides first; give Windows a moment before switching back.
     sleep(Duration::from_millis(60));
     let _ = unsafe { SetForegroundWindow(hwnd) };

@@ -13,6 +13,14 @@ export interface InstalledApp {
 
 export const appItemId = (id: string) => `app:${id}`
 
+/** An app's name from its .exe path: its Start menu name if Esky knows it, else the file name. */
+export function appName(path: string | null | undefined) {
+  if (!path) return 'Unknown app'
+  const p = path.toLowerCase()
+  const known = Object.values(ITEMS).find(it => it.app?.path?.toLowerCase() === p)
+  return known?.title ?? path.split(/[\\/]/).pop()!.replace(/\.exe$/i, '')
+}
+
 /** Microsoft Store (packaged) apps have ids like "Microsoft.WindowsTerminal_8wekyb3d8bbwe!App". */
 export const isStoreApp = (a: { id: string }) => /_[a-z0-9]{13}!/i.test(a.id)
 

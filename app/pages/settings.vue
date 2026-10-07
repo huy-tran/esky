@@ -67,6 +67,7 @@ onMounted(async () => {
 onBeforeUnmount(() => unlistenOpen?.())
 
 // Clipboard
+const clipboard = useClipboard()
 const histOpts = [{ value: '100', label: '100 items' }, { value: '500', label: '500 items' }, { value: '1000', label: '1,000 items' }, { value: '0', label: 'Unlimited' }]
 const newApp = ref('')
 function addApp() {
@@ -315,6 +316,14 @@ const selectUi = { trailingIcon: 'size-3.5 text-(--muted)', content: 'bg-(--pop-
           <!-- Clipboard -->
           <div v-else-if="tab === 'clipboard'" :class="card">
             <div :class="[row, 'border-b border-(--bd)']">
+              <SettingsRow title="Clipboard history" desc="Keep what you copy (text, links, images, files) on this PC so you can paste it again later." />
+              <USwitch v-model="S.clipHistory" aria-label="Clipboard history" :ui="switchLg" />
+            </div>
+            <div :class="[row, 'border-b border-(--bd)']">
+              <SettingsRow title="Clear history" :desc="`${clipboard.history.value.length.toLocaleString()} entries saved. Pinned entries are kept.`" />
+              <UButton color="neutral" variant="outline" :class="ghostBtn" :disabled="!clipboard.history.value.some(e => !e.pinned)" @click="clipboard.clear()">Clear</UButton>
+            </div>
+            <div :class="[row, 'border-b border-(--bd)']">
               <SettingsRow title="History length" desc="Older entries are removed first. Pinned items are always kept." />
               <USelect v-model="S.histLen" :items="histOpts" variant="none" :class="`${field} w-[150px] px-2`" :ui="selectUi" />
             </div>
@@ -335,7 +344,7 @@ const selectUi = { trailingIcon: 'size-3.5 text-(--muted)', content: 'bg-(--pop-
               </span>
             </div>
             <div :class="[row, 'border-b border-(--bd)']">
-              <SettingsRow title="Ignore password managers" desc="Skips anything copied from 1Password, Bitwarden, KeePassXC and content marked as concealed." />
+              <SettingsRow title="Ignore password managers" desc="Skips anything an app marks as private when copying, which password managers (1Password, Bitwarden, KeePassXC) do." />
               <USwitch v-model="S.ignorePm" aria-label="Ignore password managers" :ui="switchLg" />
             </div>
             <div class="px-4 py-3.5 flex flex-col gap-2.5">
