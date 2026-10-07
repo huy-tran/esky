@@ -127,6 +127,9 @@ export function quick(q: string, opts: QuickOptions = {}): QuickResult {
     ] }
   }
 
+  const tc = timeQuery(q)
+  if (tc) return { card: tc }
+
   const live = opts.rates?.rates
   const table = live ?? RATES
   if ((m = ql.match(/^(-?[\d.,]+)\s*([a-z]{3})\s+(?:to|in)\s+([a-z]{3})$/)) && table[m[2]!] && table[m[3]!]) {

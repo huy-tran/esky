@@ -35,7 +35,7 @@ async function loadFromTauri(configDir: string): Promise<HerdSite[]> {
 
 async function loadFromDevServer(configDir: string): Promise<HerdSite[]> {
   const res = await $fetch<{ sites: HerdSite[] }>('/api/herd/sites', { query: configDir ? { dir: configDir } : {} })
-  return res.sites
+  return Array.isArray(res?.sites) ? res.sites : []
 }
 
 let instance: ReturnType<typeof create> | null = null
