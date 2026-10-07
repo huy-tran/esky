@@ -12,7 +12,7 @@ All notable changes to Esky are listed here. The format follows [Keep a Changelo
 
 ### Removed
 
-- The sample applications that opened nothing.
+- The sample applications and files in search results, which opened nothing.
 - Default system-wide hotkeys for features that don't work yet (Ctrl Shift V for Clipboard History, Ctrl Alt arrows for window layouts), which took those keys away from other apps.
 
 ## 0.1.0 - 2026-10-07

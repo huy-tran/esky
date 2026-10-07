@@ -63,9 +63,6 @@ export const ITEMS: Record<string, Item> = {
   theme: { title: 'Toggle Light / Dark', sub: 'System · Appearance', icon: 'i-lucide-sun-moon', kind: 'sys', go: 'theme' },
   settings: { title: 'Esky Settings', sub: 'Preferences', icon: 'i-lucide-settings', kind: 'cmd', keys: ['Ctrl', ','], go: 'settings' },
   shortcuts: { title: 'Keyboard Shortcuts', sub: 'Esky Settings', icon: 'i-lucide-keyboard', kind: 'cmd', go: 'shortcuts' },
-  notes: { title: 'laravel-upgrade-notes.md', sub: 'Documents › Notes', icon: 'i-lucide-file-text', tile: '#52525B', kind: 'file' },
-  solar: { title: 'Supplier-invoice-2026.pdf', sub: 'Downloads', icon: 'i-lucide-file', tile: '#B91C1C', kind: 'file' },
-  invoices: { title: 'invoices-2026-Q3.xlsx', sub: 'Documents › Finance', icon: 'i-lucide-file-spreadsheet', tile: '#15803D', kind: 'file' }
 }
 
 export const RECENT: string[] = []
