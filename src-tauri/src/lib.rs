@@ -534,9 +534,10 @@ fn window_effect(app: AppHandle, effect: String, dark: bool) -> Result<(), Strin
     let window = app.get_webview_window("main").ok_or("No launcher window")?;
     #[cfg(target_os = "windows")]
     {
-        use window_vibrancy::{apply_acrylic, apply_mica, clear_acrylic, clear_mica};
+        use window_vibrancy::{apply_acrylic, apply_blur, apply_mica, clear_acrylic, clear_blur, clear_mica};
         let _ = clear_mica(&window);
         let _ = clear_acrylic(&window);
+        let _ = clear_blur(&window);
         let tint = if dark { (15, 23, 42, 40) } else { (250, 250, 247, 40) };
         match effect.as_str() {
             // Mica needs Windows 11; Windows 10 gets Acrylic instead.
@@ -545,7 +546,10 @@ fn window_effect(app: AppHandle, effect: String, dark: bool) -> Result<(), Strin
                     apply_acrylic(&window, Some(tint)).map_err(|e| e.to_string())?;
                 }
             }
-            "acrylic" => apply_acrylic(&window, Some(tint)).map_err(|e| e.to_string())?,
+            // Windows 11's own Acrylic backdrop looks almost like Mica behind the panel, so blur
+            // the windows behind instead (as Tabby does). The panel's opacity is the tint. It can
+            // lag while a window is dragged or resized, which the launcher never is.
+            "acrylic" => apply_blur(&window, Some((0, 0, 0, 0))).map_err(|e| e.to_string())?,
             "clear" | "solid" => {}
             _ => return Err("Unknown background".into()),
         }

@@ -189,8 +189,8 @@ const backgroundItems = [
 ]
 const backgroundDesc = computed(() => ({
   mica: 'Tinted by your wallpaper, like Windows 11 apps. Windows 10 gets Acrylic.',
-  acrylic: 'Blurs the windows behind the launcher. Lower the opacity to see more of them.',
-  clear: 'See straight through to the windows behind, without blur.',
+  acrylic: 'Blurs the windows behind the launcher. Around 50–65% opacity works well.',
+  clear: 'See straight through, without blur. Busy at low opacity; try 85% or more.',
   solid: 'No transparency.'
 })[S.value.background])
 
