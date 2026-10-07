@@ -46,7 +46,7 @@ export interface Item {
   qlink?: Quicklink
   snip?: Snippet
   /** An installed app (see useApps). */
-  app?: { id: string, path: string | null }
+  app?: { id: string, path: string | null, store: boolean }
 }
 
 export const ITEMS: Record<string, Item> = {
@@ -307,8 +307,9 @@ export const SYS_CONFIRM: Record<string, [string, string, string, string]> = {
 export const ONB_HK: [string[], string][] = [[['Alt', 'Space'], 'Default. Works on every keyboard layout.'], [['Ctrl', 'Space'], 'Can clash with input method switching.'], [['Win', 'Alt', 'Space'], 'Leaves Alt Space free for other apps.']]
 export const ONB_TG: Record<string, boolean> = { apps: true, store: true, herd: true, sel: true, clip: true, expand: true, startup: true }
 export const ONB_ROWS: [string, string, string, string][][] = [
-  [['apps', 'Start menu apps', '64 apps found', 'i-lucide-layout-grid'], ['store', 'Microsoft Store apps', '12 apps found', 'i-lucide-shopping-bag'], ['herd', 'Laravel Herd sites', 'Sites in ~\\Herd', 'i-lucide-feather']],
-  [['sel', 'Read selected text', 'Used by Quick AI commands', 'i-lucide-text-cursor-input'], ['clip', 'Clipboard history', 'Stored on this PC for 30 days', 'i-lucide-clipboard-list'], ['expand', 'Text expansion', 'Watches typed keywords so snippets can expand', 'i-lucide-text-quote'], ['startup', 'Start with Windows', 'Esky waits in the tray', 'i-lucide-power']]
+  // The counts in the first row are filled in from this PC (see Onboarding.vue).
+  [['apps', 'Start menu apps', 'Desktop apps from the Start menu', 'i-lucide-layout-grid'], ['store', 'Microsoft Store apps', 'Apps installed from the Microsoft Store', 'i-lucide-shopping-bag'], ['herd', 'Laravel Herd sites', 'The sites Laravel Herd serves', 'i-lucide-feather']],
+  [['sel', 'Read selected text', 'Used by Quick AI commands', 'i-lucide-text-cursor-input'], ['clip', 'Clipboard history', 'Kept on this PC only', 'i-lucide-clipboard-list'], ['expand', 'Text expansion', 'Watches typed keywords so snippets can expand', 'i-lucide-text-quote'], ['startup', 'Start with Windows', 'Esky waits in the tray', 'i-lucide-power']]
 ]
 export const ONB_STEPS: [string, string][] = [['Welcome to Esky', 'Pick the shortcut that opens Esky from anywhere. You can change it later in Settings.'], ['Import your apps', 'Esky indexes these sources so they show up in search.'], ['Permissions', 'Each feature only asks for what it needs. Turn off anything you won’t use.'], ['You’re all set', 'A few shortcuts to get started.']]
 

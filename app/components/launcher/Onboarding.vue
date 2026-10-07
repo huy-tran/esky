@@ -1,11 +1,27 @@
 <script setup lang="ts">
 import { ONB_HK, ONB_ROWS, ONB_STEPS } from '~/data/fixtures'
+import { isStoreApp } from '~/composables/useApps'
 
 const L = useLauncher()
 const s = L.s
 const o = computed(() => s.onb!)
 const step = computed(() => ONB_STEPS[o.value.step]!)
 const toggles = computed(() => ONB_ROWS[o.value.step - 1] || [])
+
+/** Real counts for the sources Esky found on this PC. */
+const found = computed((): Record<string, number | null> => {
+  const apps = L.apps.list.value
+  const ready = L.apps.status.value === 'ready'
+  return {
+    apps: ready ? apps.filter(a => !isStoreApp(a)).length : null,
+    store: ready ? apps.filter(isStoreApp).length : null,
+    herd: L.herd.status.value === 'ready' ? L.herd.sites.value.length : null
+  }
+})
+const describe = (id: string, desc: string) => {
+  const n = found.value[id]
+  return n == null ? desc : `${desc} · ${n} found`
+}
 const tips = computed(() => ([
   ['Open Esky', ONB_HK[o.value.hk]![0]],
   ['Actions for any result', ['Ctrl', 'K']],
@@ -67,7 +83,7 @@ const btn = 'h-8 gap-[7px] rounded-[6px] text-[13px] ring-0'
           <Tile :icon="icon" :icon-size="16" />
           <div class="flex-1 min-w-0">
             <div class="text-[13.5px] font-medium">{{ title }}</div>
-            <div class="text-[12px] text-(--muted) mt-0.5">{{ desc }}</div>
+            <div class="text-[12px] text-(--muted) mt-0.5">{{ describe(id, desc) }}</div>
           </div>
           <USwitch :model-value="!!o.tg[id]" tabindex="-1" :ui="switchUi" class="pointer-events-none" />
         </div>

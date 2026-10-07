@@ -1,7 +1,7 @@
 // Launcher state and behaviour.
 import {
   AI_CMDS, BRANCHES, CLIP_INIT, EMOJI, FAVS, GROUPS,
-  ITEMS, KIND_LABEL, NOTES_INIT, ONB_HK, ONB_TG, RECENT, SERVERS,
+  ITEMS, KIND_LABEL, NOTES_INIT, ONB_HK, RECENT, SERVERS,
   SNIPS, SPLIT, SPLIT_FOOT, SPLIT_KEYS, SUGGEST, SYS_CONFIRM, USAGE_INIT, WIN_CMDS, FILES,
   type ChatMsg, type ClipItem, type Emoji, type FileEntry, type Note, type Quicklink,
   type Selection, type Server, type Snippet, type SplitView, type WinCmd
@@ -240,7 +240,13 @@ function createLauncher() {
     return !!a && a.selectionStart != null && a.selectionStart !== a.selectionEnd
   }
 
-  const ok = (id: string) => !disabled.value.includes(id) && (!ITEMS[id]!.ext || exts.isActive(ITEMS[id]!.ext!))
+  const ok = (id: string) => {
+    const it = ITEMS[id]!
+    if (disabled.value.includes(id) || (it.ext && !exts.isActive(it.ext))) return false
+    // Settings → General: which kinds of apps show up.
+    if (it.app) return it.app.store ? settings.value.storeApps : settings.value.desktopApps
+    return true
+  }
 
   // ---------- extension preferences ----------
 
@@ -703,7 +709,7 @@ function createLauncher() {
     recent.value = [id, ...recent.value.filter(x => x !== id)].slice(0, 5)
     if (it.app) return launchApp(id)
     if ((it.go && SPLIT[it.go]) || it.go === 'emoji') return go(it.go as View, { splitQuery: '', splitSel: 0 })
-    if (it.go === 'onboard') return Object.assign(s, { open: true, actionsOpen: false, onb: { step: 0, hk: 0, tg: { ...ONB_TG } } })
+    if (it.go === 'onboard') return Object.assign(s, { open: true, actionsOpen: false, onb: onbStart() })
     if (it.qlink) {
       const q = it.qlink
       if (!q.arg) return closeWith(`Opened ${q.url}`, () => openUrl(q.url))
@@ -911,6 +917,13 @@ function createLauncher() {
     c?.run()
   }
 
+  /** Onboarding opened from your current settings. */
+  function onbStart() {
+    const st = settings.value
+    const hk = ONB_HK.findIndex(([keys]) => keys.join('+') === st.hotkey.join('+'))
+    return { step: 0, hk: Math.max(0, hk), tg: { apps: st.desktopApps, store: st.storeApps, herd: exts.isActive('herd'), sel: st.readSelection, clip: st.clipHistory, expand: st.textExpansion, startup: st.startLogin } }
+  }
+
   function onbNext() {
     const o = s.onb
     if (!o) return
@@ -920,7 +933,9 @@ function createLauncher() {
     }
     s.onb = null
     onboarded.value = true
-    settings.value = { ...settings.value, hotkey: ONB_HK[o.hk]![0], startLogin: !!o.tg.startup }
+    const t = o.tg
+    settings.value = { ...settings.value, hotkey: ONB_HK[o.hk]![0], startLogin: !!t.startup, desktopApps: !!t.apps, storeApps: !!t.store, readSelection: !!t.sel, clipHistory: !!t.clip, textExpansion: !!t.expand }
+    exts.setEnabled('herd', !!t.herd)
     toast('success', 'Setup complete', `Press ${ONB_HK[o.hk]![0].join(' + ')} to open Esky.`)
   }
 
@@ -1913,7 +1928,7 @@ function createLauncher() {
   watch(floatId, id => floatNote(id))
 
   ready.then(() => {
-    if (!onboarded.value) Object.assign(s, { open: true, onb:{ step: 0, hk: 0, tg: { ...ONB_TG } } })
+    if (!onboarded.value) Object.assign(s, { open: true, onb: onbStart() })
     if (floatId.value) floatNote(floatId.value)
     apps.load()
     rates.refresh()

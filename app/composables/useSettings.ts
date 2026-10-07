@@ -7,6 +7,15 @@ export interface SettingsState {
   startLogin: boolean
   activeMonitor: boolean
   closeBlur: boolean
+  /** Search sources: desktop apps from the Start menu, and Microsoft Store apps. */
+  desktopApps: boolean
+  storeApps: boolean
+  /** Quick AI reads the text selected in the app you were using. */
+  readSelection: boolean
+  /** Record what you copy (Clipboard History). */
+  clipHistory: boolean
+  /** Expand snippet keywords as you type in other apps. */
+  textExpansion: boolean
   histLen: string
   keepDays: number
   ignorePm: boolean
@@ -20,6 +29,11 @@ const defaults = (): SettingsState => ({
   startLogin: true,
   activeMonitor: true,
   closeBlur: true,
+  desktopApps: true,
+  storeApps: true,
+  readSelection: true,
+  clipHistory: true,
+  textExpansion: true,
   histLen: '500',
   keepDays: 30,
   ignorePm: true,

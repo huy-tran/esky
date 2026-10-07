@@ -30,7 +30,9 @@ const tabTitle = computed(() => TABS.find(t => t.value === tab.value)!.label)
 const generalSwitches: [keyof SettingsState, string, string][] = [
   ['startLogin', 'Start at login', 'Esky runs quietly in the tray after you sign in to Windows.'],
   ['activeMonitor', 'Show on active monitor', 'Opens on the screen with your mouse cursor instead of the primary display.'],
-  ['closeBlur', 'Close when focus is lost', 'Hides the window when you click outside it.']
+  ['closeBlur', 'Close when focus is lost', 'Hides the window when you click outside it.'],
+  ['desktopApps', 'Search desktop apps', 'Apps from the Start menu show up in search.'],
+  ['storeApps', 'Search Microsoft Store apps', 'Apps installed from the Microsoft Store show up in search.']
 ]
 
 watch(() => S.value.startLogin, on => setAutostart(on))

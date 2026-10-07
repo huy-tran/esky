@@ -13,6 +13,9 @@ export interface InstalledApp {
 
 export const appItemId = (id: string) => `app:${id}`
 
+/** Microsoft Store (packaged) apps have ids like "Microsoft.WindowsTerminal_8wekyb3d8bbwe!App". */
+export const isStoreApp = (a: { id: string }) => /_[a-z0-9]{13}!/i.test(a.id)
+
 /** Reload the list when the launcher opens and it's older than this, to pick up new installs. */
 const STALE_MS = 10 * 60 * 1000
 
@@ -46,7 +49,7 @@ function create() {
         const { invoke } = await import('@tauri-apps/api/core')
         const apps = await invoke<InstalledApp[]>('apps_list')
         for (const id of Object.keys(ITEMS)) if (id.startsWith('app:')) delete ITEMS[id]
-        for (const a of apps) ITEMS[appItemId(a.id)] = { title: a.name, sub: '', icon: 'i-lucide-app-window', kind: 'app', app: { id: a.id, path: a.path } }
+        for (const a of apps) ITEMS[appItemId(a.id)] = { title: a.name, sub: '', icon: 'i-lucide-app-window', kind: 'app', app: { id: a.id, path: a.path, store: isStoreApp(a) } }
         list.value = apps
         version.value++
         status.value = 'ready'
