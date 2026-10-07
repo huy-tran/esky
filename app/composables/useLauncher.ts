@@ -25,13 +25,15 @@ import { useRates } from './useRates'
 import { useQuicklinks } from './useQuicklinks'
 import { useSnippets } from './useSnippets'
 import { fileKind, useFiles } from './useFiles'
+import { useDocker, type DockerKind } from './useDocker'
+import { formatColour, useColours, type ColourFormat, type SavedColour } from './useColours'
 import { clipDay, clipPreview, copyPrivate, useClipboard, type ClipEntry } from './useClipboard'
 import { comboOf, formatBytes, phSegs, trunc, type BodySeg } from '~/utils/text'
 import { captureTarget, clearTarget, copyText, ejectDrive, floatNote, hideWindow, isTauri, openSettings, openUrl, pasteToTarget, readClipboardText, recycleBinInfo, removableDrives, revealPath, showWindow, systemAction, windowLayout, type SystemAction } from './usePlatform'
 import { persistRef } from './usePersist'
 import { useSettings } from './useSettings'
 
-export type View = 'search' | 'clipboard' | 'chat' | 'aiResult' | 'forgeList' | 'forgeDetail' | 'deploy' | 'emoji' | 'herdList' | 'gitList' | 'password' | 'dictionary' | SplitView
+export type View = 'search' | 'clipboard' | 'chat' | 'aiResult' | 'forgeList' | 'forgeDetail' | 'deploy' | 'emoji' | 'herdList' | 'gitList' | 'password' | 'dockerList' | 'dictionary' | SplitView
 
 /** Senses shown per part of speech; the rest are one Ctrl O away on Wiktionary. */
 export const DICT_SENSES = 8
@@ -73,7 +75,7 @@ export interface SplitRow {
   g: string
 }
 
-export type SplitData = Snippet | Quicklink | WinCmd | FileEntry | ExtensionDef | Note
+export type SplitData = Snippet | Quicklink | WinCmd | FileEntry | ExtensionDef | Note | SavedColour
 
 export interface Detail {
   head?: { icon?: string, tile?: string, title?: string, sub?: string, badge?: string, btn?: { label: string, primary: boolean, danger: boolean, busy: boolean, run: () => void } }
@@ -151,6 +153,8 @@ function createLauncher() {
     herdQuery: '',
     herdSel: 0,
     gitQuery: '',
+    dockerQuery: '',
+    dockerSel: 0,
     gitSel: 0,
     dictWord: '',
     dictSel: 0
@@ -563,6 +567,7 @@ function createLauncher() {
         return { key: x.id, title: x.name, sub: x.desc, icon: x.icon, tile: x.tile, acc: inst ? 'Installed' : '', accColor: inst ? 'var(--ok)' : 'var(--muted)', data: x, g: inst ? 'Installed' : 'Available' }
       }), ['Installed', 'Available'])
     }
+    if (v === 'colors') groups = grp(colours.list.value.filter(x => has(formatColour(x, 'hex'), formatColour(x, 'rgb'))).map(x => ({ key: x.id, title: colourText(x), sub: formatColour(x, 'rgb'), icon: 'i-lucide-pipette', tile: formatColour(x, 'hex'), acc: shortDate(x.at), data: x, g: 'Picked' })))
     if (v === 'notes') groups = grp(notes.value.filter(x => has(x.body)).map(x => ({ key: x.id, title: x.body.split('\n')[0] || 'Untitled note', sub: x.updated, icon: 'i-lucide-sticky-note', acc: floatId.value === x.id ? 'Floating' : '', accColor: 'var(--warn)', data: x, g: 'Notes' })))
     return { groups, flat: groups.flatMap(g => g.rows) }
   })
@@ -614,6 +619,10 @@ function createLauncher() {
       const inst = installed.value.includes(n.id)
       return { head: { icon: n.icon, tile: n.tile, title: n.name, sub: `by ${n.author}`, btn: { label: inst ? 'Uninstall' : 'Install', primary: !inst, danger: inst, busy: false, run: () => inst ? askUninstall(n) : install(n) } }, desc: n.desc, items: { title: 'COMMANDS', list: n.commands.map(c => ({ t: c.title, icon: n.icon })) }, meta: [['Author', n.author], ['Version', n.ver], ['Status', inst ? (exts.isActive(n.id) ? 'Installed' : 'Installed · turned off') : 'Not installed']] }
     }
+    if (v === 'colors') {
+      const n = x as SavedColour
+      return { head: { icon: 'i-lucide-pipette', tile: formatColour(n, 'hex'), title: colourText(n), sub: `Picked ${new Date(n.at).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` }, meta: [['HEX', formatColour(n, 'hex'), 1], ['RGB', formatColour(n, 'rgb'), 1], ['HSL', formatColour(n, 'hsl'), 1]] }
+    }
     if (v === 'notes') {
       const n = x as Note
       const words = n.body.trim() ? n.body.trim().split(/\s+/).length : 0
@@ -653,6 +662,19 @@ function createLauncher() {
       const r = curRepo()
       target = r ? r.name : 'Uncommitted Changes'
       list = [O('gopen', `Open in ${editorFor('git').name}`, 'i-lucide-code-xml', ['↵']), O('gterm', 'Open in Terminal', 'i-lucide-square-terminal', ['Ctrl', 'T']), O('greveal', 'Reveal in Explorer', 'i-lucide-folder-search', ['Ctrl', 'Shift', 'E']), O('gpath', 'Copy Path', 'i-lucide-copy', ['Ctrl', 'Shift', 'C']), O('greload', 'Check Again', 'i-lucide-refresh-cw', ['Ctrl', 'R'])]
+    } else if (s.view === 'dockerList') {
+      const r = curDocker()
+      const k = docker.kind.value
+      target = r?.title ?? 'Docker'
+      list = k === 'images'
+        ? [O('dcopy', 'Copy Image ID', 'i-lucide-copy', ['↵']), O('dreload', 'Refresh', 'i-lucide-refresh-cw', ['Ctrl', 'R']), O('dremove', 'Remove Image', 'i-lucide-trash-2', ['Ctrl', '⌫'], true)]
+        : [
+            O('dprimary', r?.running ? 'Stop' : 'Start', r?.running ? 'i-lucide-square' : 'i-lucide-play', ['↵']),
+            O('drestart', 'Restart', 'i-lucide-rotate-ccw', ['Ctrl', 'Shift', 'R']),
+            ...(k === 'containers' ? [O('dlogs', 'Show Logs', 'i-lucide-scroll-text', ['Ctrl', 'L']), O('dcopy', 'Copy Container ID', 'i-lucide-copy', ['Ctrl', 'Shift', 'C'])] : []),
+            O('dreload', 'Refresh', 'i-lucide-refresh-cw', ['Ctrl', 'R']),
+            ...(k === 'containers' ? [O('dremove', 'Remove Container', 'i-lucide-trash-2', ['Ctrl', '⌫'], true)] : [])
+          ]
     } else if (s.view === 'password') {
       target = pw.opts.value.type === 'password' ? 'Password' : 'Passphrase'
       list = [O('pwcopy', 'Copy and Close', 'i-lucide-copy', ['↵']), O('pwnew', 'Generate Another', 'i-lucide-refresh-cw', ['Ctrl', 'R']), O('pwtype', pw.opts.value.type === 'password' ? 'Switch to Passphrase' : 'Switch to Password', 'i-lucide-arrow-left-right', ['Ctrl', 'T'])]
@@ -673,6 +695,7 @@ function createLauncher() {
         windows: [O('split', 'Apply Layout', 'i-lucide-app-window', ['↵']), O('hotkey', 'Set Hotkey', 'i-lucide-keyboard', ['Ctrl', 'Shift', 'H'])],
         files: [O('split', 'Open', 'i-lucide-corner-down-left', ['↵']), O('fwith', 'Open With Visual Studio Code', 'i-lucide-code-xml', ['Ctrl', 'O']), O('fpath', 'Copy Path', 'i-lucide-copy', ['Ctrl', 'Shift', 'C']), O('freveal', 'Reveal in Explorer', 'i-lucide-folder-search', ['Ctrl', 'Shift', 'E']), O('fattach', 'Attach to AI Chat', 'i-lucide-sparkles', ['Ctrl', 'Shift', 'A'])],
         store: sx && installed.value.includes(sx.id) ? [O('split', 'Configure', 'i-lucide-settings', ['↵']), O('xuninstall', 'Uninstall', 'i-lucide-trash-2', ['Ctrl', '⌫'], true)] : [O('split', 'Install', 'i-lucide-download', ['↵'])],
+        colors: [O('split', 'Copy', 'i-lucide-copy', ['↵']), O('colhex', 'Copy HEX', 'i-lucide-hash', []), O('colrgb', 'Copy RGB', 'i-lucide-palette', []), O('colhsl', 'Copy HSL', 'i-lucide-palette', []), O('colpick', 'Pick New Colour', 'i-lucide-pipette', ['Ctrl', 'N']), O('coldelete', 'Delete', 'i-lucide-trash-2', ['Ctrl', '⌫'], true)],
         notes: [O('nnew', 'New Note', 'i-lucide-square-pen', ['Ctrl', 'N']), O('nfloat', sx && floatId.value === sx.id ? 'Stop Floating' : 'Float on Desktop', 'i-lucide-picture-in-picture-2', ['Ctrl', 'Shift', 'F']), O('ndelete', 'Delete Note', 'i-lucide-trash-2', ['Ctrl', '⌫'], true)],
         emoji: [O('epaste', 'Paste', 'i-lucide-clipboard-paste', ['↵']), O('ecopy', 'Copy', 'i-lucide-copy', ['Ctrl', 'C'])]
       } as Record<string, ActionDef[]>)[s.view]!
@@ -757,6 +780,76 @@ function createLauncher() {
       .replace(/\{cursor\}/g, '')
     if (out.includes('{clipboard}')) out = out.replace(/\{clipboard\}/g, await readClipboardText())
     return out
+  }
+
+  // ---------- Docker ----------
+
+  const docker = useDocker()
+  const dockerModel = computed(() => {
+    const q = s.dockerQuery.trim().toLowerCase()
+    return docker.rows.value.filter(r => !q || r.title.toLowerCase().includes(q) || r.sub.toLowerCase().includes(q))
+  })
+  const curDocker = () => dockerModel.value[Math.min(s.dockerSel, Math.max(0, dockerModel.value.length - 1))]
+
+  function openDocker(kind: DockerKind) {
+    go('dockerList', { dockerQuery: '', dockerSel: 0 })
+    docker.load(kind)
+  }
+
+  /** Run a Docker action on the selected row, with a toast for the result. */
+  function dockerDo(action: string, label: string) {
+    const r = curDocker()
+    if (!r) return
+    docker.act(action, r.id)
+      .then(() => action !== 'logs' && toast('success', `${label}: ${r.title}`))
+      .catch(e => toast('error', `Couldn’t ${label.toLowerCase()} ${r.title}`, String(e)))
+  }
+
+  // ---------- Colour Picker ----------
+
+  const colours = useColours()
+  /** The "Copy as" preference, and HEX case. */
+  const colourFormat = () => (exts.prefsFor('colour').format || 'hex') as ColourFormat
+  const colourText = (c: SavedColour) => formatColour(c, colourFormat(), exts.prefsFor('colour').upper !== false)
+
+  function copyColour(c: SavedColour, format: ColourFormat) {
+    const text = formatColour(c, format, exts.prefsFor('colour').upper !== false)
+    copyText(text)
+    toast('success', `Copied ${text}`)
+  }
+
+  /** Hide, wait for a click anywhere, then copy that colour and show it in Saved Colours. */
+  function pickColour() {
+    if (!isTauri()) return toast('info', 'The Colour Picker works in the desktop app')
+    closeWith('Click anywhere to pick a colour. Esc cancels.', async () => {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core')
+        const picked = await invoke<{ r: number, g: number, b: number } | null>('colour_pick')
+        if (!picked) return
+        const c = colours.add(picked)
+        go('colors', { splitQuery: '', splitSel: 0 })
+        copyColour(c, colourFormat())
+      } catch (e) {
+        s.open = true
+        toast('error', 'Couldn’t pick a colour', String(e))
+      }
+    })
+  }
+
+  // ---------- Media Controls ----------
+
+  /** Play/pause or skip in whatever is playing (Spotify only, if that's the preference). */
+  async function controlMedia(action: 'toggle' | 'next' | 'previous') {
+    if (!isTauri()) return toast('info', 'Media Controls work in the desktop app')
+    const spotifyOnly = exts.prefsFor('spotify').player === 'spotify'
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      const now = await invoke<{ title: string, artist: string, playing: boolean }>('media_control', { action, spotifyOnly })
+      const what = [now.title, now.artist].filter(Boolean).join(' · ')
+      closeWith(now.playing ? `Playing ${what}` : `Paused ${what}`)
+    } catch (e) {
+      toast('error', 'Couldn’t control playback', String(e))
+    }
   }
 
   /** Typed-keyword expansion (desktop app): Rust watches for the keywords and asks for the text. */
@@ -844,7 +937,9 @@ function createLauncher() {
         const url = ec.cmd.url(exts.prefsFor(ec.ext.id))
         return closeWith(`Opened ${ec.ext.name} › ${ec.cmd.title}`, () => openUrl(url))
       }
-      // No real integration yet (Colour Picker, Media Controls, Docker).
+      if (ec.ext.id === 'docker') return openDocker(ec.cmd.id as DockerKind)
+      if (ec.ext.id === 'spotify') return controlMedia(ec.cmd.id === 'prev' ? 'previous' : ec.cmd.id as 'toggle' | 'next')
+      if (ec.ext.id === 'colour') return ec.cmd.id === 'pick' ? pickColour() : go('colors', { splitQuery: '', splitSel: 0 })
       return closeWith(`Opened ${it.sub} › ${it.title}`)
     }
     if (id === 'emptyBin') return askEmptyBin()
@@ -914,6 +1009,7 @@ function createLauncher() {
       case 'store':
         if (installed.value.includes(x.id)) return openSettings({ tab: 'extensions', ext: x.id })
         return install(x as ExtensionDef)
+      case 'colors': return copyColour(x as SavedColour, colourFormat())
       case 'notes':
         setTimeout(() => els.note?.focus(), 40)
     }
@@ -1589,6 +1685,44 @@ function createLauncher() {
       case 'greload':
         loadGit().then(() => toast('success', 'Checked again', `${gitModel.value.flat.length} of ${gitModel.value.checked} repos need attention`))
         break
+      case 'dprimary': {
+        const r = curDocker()
+        if (!r) break
+        if (docker.kind.value === 'images') runAction('dcopy')
+        else dockerDo(r.running ? 'stop' : 'start', r.running ? 'Stopped' : 'Started')
+        break
+      }
+      case 'drestart': dockerDo('restart', 'Restarted'); break
+      case 'dlogs': {
+        const r = curDocker()
+        if (r) closeWith(`Showing logs for ${r.title}`, () => docker.act('logs', r.id).catch(e => toast('error', 'Couldn’t show logs', String(e))))
+        break
+      }
+      case 'dcopy': {
+        const r = curDocker()
+        if (r) {
+          copyText(r.id)
+          toast('success', 'ID copied', r.id.slice(0, 24))
+        }
+        break
+      }
+      case 'dremove': {
+        const r = curDocker()
+        if (r) s.confirm = { title: `Remove ${r.title}?`, desc: docker.kind.value === 'images' ? 'The image is deleted from this PC.' : 'The container is stopped and deleted. Its volumes are kept.', label: 'Remove', run: () => dockerDo('remove', 'Removed') }
+        break
+      }
+      case 'dreload': docker.load(); break
+      case 'colhex': case 'colrgb': case 'colhsl': {
+        const x = curSplit() as SavedColour | undefined
+        if (x) copyColour(x, id === 'colhex' ? 'hex' : id === 'colrgb' ? 'rgb' : 'hsl')
+        break
+      }
+      case 'colpick': pickColour(); break
+      case 'coldelete': {
+        const x = curSplit() as SavedColour | undefined
+        if (x) colours.remove(x.id)
+        break
+      }
       case 'pwcopy': copyPassword(); break
       case 'pwnew': pw.regenerate(); break
       case 'pwtype': pw.setType(pw.opts.value.type === 'password' ? 'passphrase' : 'password'); break
@@ -1994,6 +2128,35 @@ function createLauncher() {
       }
       return
     }
+    if (v === 'dockerList') {
+      const n = dockerModel.value.length
+      if (k === 'ArrowDown' && n) {
+        stop()
+        s.dockerSel = (s.dockerSel + 1) % n
+      } else if (k === 'ArrowUp' && n) {
+        stop()
+        s.dockerSel = (s.dockerSel - 1 + n) % n
+      } else if (k === 'Enter' && n) {
+        stop()
+        runAction('dprimary')
+      } else if (ctrl && !sh && kl === 'l' && n) {
+        stop()
+        runAction('dlogs')
+      } else if (ctrl && sh && kl === 'r' && n) {
+        stop()
+        runAction('drestart')
+      } else if (ctrl && !sh && kl === 'r') {
+        stop()
+        runAction('dreload')
+      } else if (ctrl && sh && kl === 'c' && n) {
+        stop()
+        runAction('dcopy')
+      } else if (ctrl && k === 'Backspace' && n) {
+        stop()
+        runAction('dremove')
+      }
+      return
+    }
     if (v === 'password') {
       if (k === 'Enter') {
         stop()
@@ -2081,6 +2244,12 @@ function createLauncher() {
     if (v === 'aiResult') return { app: { icon: 'i-lucide-sparkles', tile: 'var(--accent)', name: 'Quick AI' }, hints: [hint(s.target ? 'Paste' : 'Copy and Close', ['↵'], () => runAction('aipaste'), true), hint('Copy', ['Ctrl', 'C'], () => runAction('aicopy')), hint('Continue in Chat', ['Tab'], () => runAction('aichat')), hint('Regenerate', ['Ctrl', 'R'], () => runAction('regen'))] }
     if (v === 'herdList') return { app: { icon: 'i-lucide-feather', tile: '#E11D48', name: 'Laravel Herd' }, hints: [hint('Open', ['↵'], () => runAction('hopen'), true), hint(herdEditor().short, ['Ctrl', 'O'], () => runAction('hcode')), act] }
     if (v === 'gitList') return { app: { icon: 'i-lucide-git-branch', tile: '#F05032', name: 'Git' }, hints: [hint(editorFor('git').short, ['↵'], () => runAction('gopen'), true), hint('Terminal', ['Ctrl', 'T'], () => runAction('gterm')), act] }
+    if (v === 'dockerList') {
+      const r = curDocker()
+      const k = docker.kind.value
+      const primary = k === 'images' ? 'Copy ID' : r?.running ? 'Stop' : 'Start'
+      return { app: { icon: 'i-lucide-container', tile: '#0284C7', name: 'Docker' }, hints: [hint(primary, ['↵'], () => runAction('dprimary'), true), ...(k === 'containers' ? [hint('Logs', ['Ctrl', 'L'], () => runAction('dlogs'))] : []), act] }
+    }
     if (v === 'password') return { app: { icon: 'i-lucide-key-round', tile: '#175DDC', name: 'Password Generator' }, hints: [hint('Copy', ['↵'], () => runAction('pwcopy'), true), hint('Regenerate', ['Ctrl', 'R'], () => runAction('pwnew')), act] }
     if (v === 'dictionary') return { app: { icon: 'i-lucide-book-a', tile: '#0369A1', name: 'Dictionary' }, hints: [hint('Copy', ['↵'], () => runAction('dcopy'), true), hint('Wiktionary', ['Ctrl', 'O'], () => runAction('dopen')), act] }
     if (v === 'forgeList') return { app: FORGE, hints: [hint('Show Details', ['↵'], () => runAction('fopen'), true), hint('Deploy', ['Ctrl', 'D'], () => runAction('fdeploy')), act] }
@@ -2155,7 +2324,7 @@ function createLauncher() {
   return {
     s, els, ready, favs, disabled, usage, recent, aliases, hotkeys, installed, notes, clip, floatId, settings,
     searchModel, clipModel, forgeModel, splitModel, emojiModel, actionsModel, footer,
-    apps, qls, sn, files, herd, herdModel, openSite, git, gitModel, pw, copyPassword, dict, dictFlat, openDictionary,
+    apps, qls, sn, files, docker, dockerModel, herd, herdModel, openSite, git, gitModel, pw, copyPassword, dict, dictFlat, openDictionary,
     chats, chatGroups, openSavedChat, claude,
     curClip, curSplit, curEmoji, detail, aiCmd, rowKeys, comboOwner, aliasOwner,
     toast, focus, go, openWin, openFromHotkey, openFromTray, activateFromHotkey, back, closeWith, activate, runAction, runSplit, openActions,

@@ -578,6 +578,54 @@ async fn file_open_with(path: String) -> Result<(), String> {
     .await?
 }
 
+// Media Controls (see media.rs).
+
+#[cfg(windows)]
+mod media;
+
+#[cfg(windows)]
+#[tauri::command]
+async fn media_control(action: String, spotify_only: bool) -> Result<media::NowPlaying, String> {
+    blocking(move || media::control(&action, spotify_only)).await?
+}
+
+// Docker (see docker.rs).
+
+#[cfg(windows)]
+mod docker;
+
+#[cfg(windows)]
+#[tauri::command]
+async fn docker_list(kind: String, host: String) -> Result<Vec<serde_json::Value>, String> {
+    blocking(move || docker::list(&kind, &host)).await?
+}
+
+#[cfg(windows)]
+#[tauri::command]
+async fn docker_action(kind: String, action: String, id: String, host: String) -> Result<(), String> {
+    blocking(move || {
+        if action == "logs" {
+            docker::logs(&id)
+        } else {
+            docker::action(&kind, &action, &id, &host)
+        }
+    })
+    .await?
+}
+
+// Colour Picker (see colour.rs).
+
+#[cfg(windows)]
+mod colour;
+
+/// Pick a colour from anywhere on screen. Hide the launcher first. None if cancelled.
+#[cfg(windows)]
+#[tauri::command]
+async fn colour_pick() -> Result<Option<colour::Picked>, String> {
+    // Its own thread: the hooks need a message loop and must not block other commands.
+    tauri::async_runtime::spawn_blocking(colour::pick).await.map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -627,7 +675,11 @@ pub fn run() {
             files_search,
             files_recent,
             file_preview,
-            file_open_with
+            file_open_with,
+            media_control,
+            docker_list,
+            docker_action,
+            colour_pick
         ])
         .setup(|app| {
             let window = app

@@ -170,7 +170,7 @@ export const EXTENSIONS: ExtensionDef[] = [
     desc: 'List containers, tail logs and start or stop compose projects.',
     commands: [{ id: 'containers', title: 'Containers' }, { id: 'compose', title: 'Compose Projects' }, { id: 'images', title: 'Images' }],
     prefs: [
-      { key: 'host', type: 'text', label: 'Docker host', default: 'npipe:////./pipe/docker_engine' },
+      { key: 'host', type: 'text', label: 'Docker host', description: 'Leave empty to use your current Docker setup (Docker Desktop).', placeholder: 'npipe:////./pipe/docker_engine' },
       { key: 'stopped', type: 'switch', label: 'Show stopped containers', default: false }
     ]
   },

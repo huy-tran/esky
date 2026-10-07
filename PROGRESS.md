@@ -36,6 +36,7 @@ Last updated: 6 Oct 2026 (Git, Password Generator, Script Commands dropped).
 - [x] Snippets you edit (Settings → Snippets) with {date}, {time}, {clipboard} and {cursor}; paste into the app you came from; typed-keyword expansion in any app (Rust `expand.rs`: a low-level keyboard hook keeps only the last 32 characters in memory, ignores Esky's own windows and injected keys)
 - [x] Window Layouts on the window Esky was opened from: halves, thirds, centre, maximise, restore (to where it was before Esky moved it), next display; fitted to the work area and Windows 11's invisible borders. Rust `window.rs`. No default hotkeys (assign them in Settings → Shortcuts)
 - [x] File Search: an in-memory index of file names in the folders from Settings → Extensions → File Search (skips node_modules, vendor, .git and build folders; reindexed every 15 minutes), Windows' Recent files, text and thumbnail previews, Open, Open With, Reveal, Copy Path, attach to AI Chat; top matches in root search. Rust `files.rs`
+- [x] Media Controls (Windows media sessions: play/pause, next, previous; Spotify-only option), Docker (containers, Compose projects, images through the docker CLI: start, stop, restart, remove, logs in Windows Terminal), Colour Picker (click anywhere, crosshair, Esc cancels; Saved Colours in HEX/RGB/HSL). Rust `media.rs`, `docker.rs`, `colour.rs`
 - [x] Git → Uncommitted Changes: repos with uncommitted changes or unpushed commits in the folders set in Settings → Extensions → Git (default `~\Herd`, `~\Frontend`); changed files, branch, open in editor or Windows Terminal. Rust `git_status` / `open_terminal` in the app, `server/api/git/status.get.ts` in the browser
 - [x] Password Generator: password or passphrase with Bitwarden's options, defaults and rules (EFF long word list); options are saved, generated values never are
 
@@ -51,7 +52,6 @@ Last updated: 6 Oct 2026 (Git, Password Generator, Script Commands dropped).
 |---|---|
 | GitHub, Jira, Sentry extensions | Commands only open a web page; the saved tokens are never used |
 | Laravel Forge | 6 sample servers; Deploy is a timed fake; SSH does nothing; the API token is never used |
-| Colour Picker, Media Controls, Docker | Commands are fakes (preference forms work) |
 | Settings → AI | The API-key backend isn't connected |
 
 ## Next steps (in order)

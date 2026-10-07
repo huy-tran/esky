@@ -262,9 +262,9 @@ export const ONB_ROWS: [string, string, string, string][][] = [
 ]
 export const ONB_STEPS: [string, string][] = [['Welcome to Esky', 'Pick the shortcut that opens Esky from anywhere. You can change it later in Settings.'], ['Import your apps', 'Esky indexes these sources so they show up in search.'], ['Permissions', 'Each feature only asks for what it needs. Turn off anything you won’t use.'], ['You’re all set', 'A few shortcuts to get started.']]
 
-export type SplitView = 'snippets' | 'quicklinks' | 'windows' | 'files' | 'store' | 'notes'
-export const SPLIT: Record<string, 1> = { snippets: 1, quicklinks: 1, windows: 1, files: 1, store: 1, notes: 1 }
-export const SPLIT_PH: Record<string, string> = { snippets: 'Search snippets…', quicklinks: 'Search quicklinks…', windows: 'Search window layouts…', files: 'Search files on this PC…', store: 'Search extensions…', notes: 'Search notes…', emoji: 'Search emoji and symbols…' }
+export type SplitView = 'snippets' | 'quicklinks' | 'windows' | 'files' | 'store' | 'notes' | 'colors'
+export const SPLIT: Record<string, 1> = { snippets: 1, quicklinks: 1, windows: 1, files: 1, store: 1, notes: 1, colors: 1 }
+export const SPLIT_PH: Record<string, string> = { snippets: 'Search snippets…', quicklinks: 'Search quicklinks…', windows: 'Search window layouts…', files: 'Search files on this PC…', store: 'Search extensions…', notes: 'Search notes…', colors: 'Search saved colours…', emoji: 'Search emoji and symbols…' }
 
 export interface FootApp { icon: string, tile: string, name: string }
 export type FootHintDef = [string, string[], string?]
@@ -275,7 +275,8 @@ export const SPLIT_FOOT: Record<SplitView, [FootApp, FootHintDef[]]> = {
   windows: [{ icon: 'i-lucide-app-window', tile: '#475569', name: 'Window Layouts' }, [['Apply', ['↵'], 'split'], ['Set Hotkey', ['Ctrl', 'Shift', 'H'], 'hotkey']]],
   files: [{ icon: 'i-lucide-file-search', tile: '#CA8A04', name: 'File Search' }, [['Open', ['↵'], 'split'], ['Open With', ['Ctrl', 'O'], 'fwith']]],
   notes: [{ icon: 'i-lucide-sticky-note', tile: '#CA8A04', name: 'Floating Notes' }, [['Edit', ['Tab']], ['New Note', ['Ctrl', 'N'], 'nnew'], ['Float', ['Ctrl', 'Shift', 'F'], 'nfloat']]],
-  store: [{ icon: 'i-lucide-store', tile: 'var(--accent)', name: 'Store' }, []]
+  store: [{ icon: 'i-lucide-store', tile: 'var(--accent)', name: 'Store' }, []],
+  colors: [{ icon: 'i-lucide-pipette', tile: '#DB2777', name: 'Saved Colours' }, [['Copy', ['↵'], 'split'], ['Pick New', ['Ctrl', 'N'], 'colpick']]]
 }
 
 export const SPLIT_KEYS: Record<string, Record<string, string>> = {
@@ -284,7 +285,8 @@ export const SPLIT_KEYS: Record<string, Record<string, string>> = {
   windows: { 'ctrl+shift+h': 'hotkey' },
   files: { 'ctrl+o': 'fwith', 'ctrl+shift+c': 'fpath', 'ctrl+shift+e': 'freveal', 'ctrl+shift+a': 'fattach' },
   store: { 'ctrl+backspace': 'xuninstall' },
-  notes: { 'ctrl+n': 'nnew', 'ctrl+shift+f': 'nfloat', 'ctrl+backspace': 'ndelete' }
+  notes: { 'ctrl+n': 'nnew', 'ctrl+shift+f': 'nfloat', 'ctrl+backspace': 'ndelete' },
+  colors: { 'ctrl+n': 'colpick', 'ctrl+backspace': 'coldelete' }
 }
 
 Object.assign(ITEMS, {

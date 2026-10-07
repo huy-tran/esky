@@ -18,6 +18,7 @@ const top = computed((): Top | null => {
   if (v === 'forgeList') return { ph: 'Search servers…', get: () => s.forgeQuery, set: (q) => { s.forgeQuery = q; s.forgeSel = 0 } }
   if (v === 'herdList') return { ph: 'Search Herd sites…', get: () => s.herdQuery, set: (q) => { s.herdQuery = q; s.herdSel = 0 } }
   if (v === 'gitList') return { ph: 'Search repos or branches…', get: () => s.gitQuery, set: (q) => { s.gitQuery = q; s.gitSel = 0 } }
+  if (v === 'dockerList') return { ph: `Search ${({ containers: 'containers', compose: 'Compose projects', images: 'images' } as const)[L.docker.kind.value]}…`, get: () => s.dockerQuery, set: (q) => { s.dockerQuery = q; s.dockerSel = 0 } }
   if (v === 'dictionary') return { ph: 'Type a word to define…', get: () => s.dictWord, set: (q) => { s.dictWord = q } }
   if (v === 'aiResult' && !s.ai?.needsInput) return { ph: 'Ask a follow-up, then Tab to continue in chat…', get: () => s.followUp, set: (q) => { s.followUp = q } }
   if (SPLIT_PH[v]) return { ph: SPLIT_PH[v]!, get: () => s.splitQuery, set: (q) => { s.splitQuery = q; s.splitSel = 0 } }
@@ -45,11 +46,13 @@ const chip = computed(() => {
     windows: { icon: 'i-lucide-app-window', text: s.target?.app ?? 'No window' },
     files: { icon: 'i-lucide-hard-drive', text: L.files.status.value === 'indexing' ? 'Indexing…' : `${L.files.indexed.value.toLocaleString()} files` },
     store: { icon: 'i-lucide-store', text: `${L.installed.value.length} installed` },
+    colors: { icon: 'i-lucide-pipette', text: 'Colour Picker' },
     notes: { icon: 'i-lucide-sticky-note', text: `${L.notes.value.length} notes` },
     emoji: { icon: 'i-lucide-smile', text: 'Emoji & Symbols' },
     herdList: { icon: 'i-lucide-feather', text: `Laravel Herd · ${L.herd.sites.value.length}` },
     gitList: { icon: 'i-lucide-git-branch', text: L.git.status.value === 'loading' ? 'Checking…' : `${L.gitModel.value.flat.length} of ${L.gitModel.value.checked} repos` },
     password: { icon: 'i-lucide-shield-check', text: 'Generated on this PC' },
+    dockerList: { icon: 'i-lucide-container', text: L.docker.status.value === 'loading' ? 'Loading…' : `Docker · ${L.dockerModel.value.length}` },
     dictionary: { icon: 'i-lucide-book-a', text: 'English · Wiktionary' }
   }
   return map[s.view]!
