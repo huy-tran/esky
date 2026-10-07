@@ -21,6 +21,8 @@ export interface SettingsState {
   ignorePm: boolean
   ignored: { name: string, icon: string, tile: string }[]
   backend: 'cc' | 'api'
+  /** Model for the API key backend. */
+  model: string
   accent: AccentId
 }
 
@@ -43,6 +45,7 @@ const defaults = (): SettingsState => ({
     { name: 'KeePassXC', icon: 'i-lucide-lock', tile: '#15803D' }
   ],
   backend: 'cc',
+  model: 'claude-opus-5-5',
   accent: 'green'
 })
 

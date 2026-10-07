@@ -144,6 +144,8 @@ export interface ChatMsg {
   role: 'user' | 'assistant'
   blocks: ChatBlock[]
   attach?: string | null
+  /** What was sent or received, as plain text (the API key backend replays it). */
+  text?: string
 }
 
 export const CHAT_INIT: ChatMsg[] = [

@@ -16,7 +16,15 @@ export interface ClaudeRequest {
   system: SystemId
   /** Continue an earlier chat. */
   sessionId?: string
+  /** Earlier turns, for the API key backend (the API keeps no sessions). */
+  history?: { role: 'user' | 'assistant', content: string }[]
 }
+
+export const API_MODELS = [
+  { value: 'claude-opus-5-5', label: 'Claude Opus 5.5', description: 'Most capable' },
+  { value: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5', description: 'Fast and capable' },
+  { value: 'claude-haiku-4-5', label: 'Claude Haiku 4.5', description: 'Fastest and cheapest' }
+]
 
 /** Plan usage windows from Claude Code's (undocumented) rate_limit_event. Utilisation is 0–1. */
 export interface ClaudeUsage {
@@ -34,6 +42,8 @@ export type ClaudeEvent =
   | { type: 'error', message: string }
 
 export interface ClaudeStatus {
+  /** Using the API key backend: `loggedIn` means a key is saved. */
+  api?: boolean
   installed: boolean
   version?: string
   loggedIn?: boolean

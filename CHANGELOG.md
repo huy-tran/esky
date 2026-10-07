@@ -9,10 +9,22 @@ All notable changes to Esky are listed here. The format follows [Keep a Changelo
 - Applications: search and open everything in the Start menu (desktop and Microsoft Store apps) with their real icons; Run as Administrator, Reveal in Explorer and Copy Path.
 - Settings → Shortcuts: change Esky's hotkey, and give any command or app a system-wide hotkey or an alias, in one place. Also opens from the "Keyboard Shortcuts" command.
 - Quick AI without selected text asks for the text (filled in from the clipboard) and runs on it. Translate, Explain Code, Summarise and Write Commit Message are now in search too.
+- Quicklinks you can add and edit, live currency rates, and a real "Check for updates" against GitHub releases.
+- System commands that work: Lock, Sleep, Restart, Shut Down, Sign Out, Empty Recycle Bin and Eject All Drives. Do Not Disturb opens Windows' notification settings.
+- Paste into the app Esky was opened from, and Quick AI on the text selected there.
+- Clipboard History: text, links, colours, images and files, with pinning and paste back. Password managers and ignored apps aren't recorded.
+- Snippets you can edit, with placeholders and typed-keyword expansion in any app.
+- Window Layouts on the window Esky was opened from.
+- File Search across the folders you choose and Windows' Recent files, with previews.
+- Media Controls, Docker containers and images, and a Colour Picker that works anywhere on screen.
+- Laravel Forge: servers, sites, deployments with their log, and SSH.
+- GitHub, Jira (including Log Work) and Sentry commands that load your own data.
+- AI Chat and Quick AI can use an Anthropic API key instead of Claude Code, with a choice of model.
 
 ### Removed
 
 - The sample applications and files in search results, which opened nothing.
+- Agent mode.
 - Default system-wide hotkeys for features that don't work yet (Ctrl Shift V for Clipboard History, Ctrl Alt arrows for window layouts), which took those keys away from other apps.
 
 ## 0.1.0 - 2026-10-07

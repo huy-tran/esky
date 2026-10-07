@@ -626,6 +626,37 @@ async fn colour_pick() -> Result<Option<colour::Picked>, String> {
     tauri::async_runtime::spawn_blocking(colour::pick).await.map_err(|e| e.to_string())
 }
 
+// AI with an Anthropic API key (see anthropic.rs).
+
+mod anthropic;
+
+#[derive(Default)]
+struct ApiRuns(Mutex<HashMap<u32, std::sync::Arc<std::sync::atomic::AtomicBool>>>);
+
+/// Stream one reply from the Messages API. Events arrive on `on_event`, the same shape as Claude Code's.
+#[tauri::command]
+fn anthropic_run(app: AppHandle, run_id: u32, model: String, system: String, messages: Vec<anthropic::Message>, quick: bool, on_event: Channel<String>) {
+    let flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    app.state::<ApiRuns>().0.lock().unwrap().insert(run_id, flag.clone());
+    std::thread::spawn(move || {
+        anthropic::run(&model, &system, messages, quick, flag, on_event);
+        app.state::<ApiRuns>().0.lock().unwrap().remove(&run_id);
+    });
+}
+
+#[tauri::command]
+fn anthropic_cancel(app: AppHandle, run_id: u32) {
+    if let Some(f) = app.state::<ApiRuns>().0.lock().unwrap().get(&run_id) {
+        f.store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+/// Is an API key saved? (The key itself never leaves Rust.)
+#[tauri::command]
+fn anthropic_has_key() -> bool {
+    anthropic::has_key()
+}
+
 // Web services for extensions (see api.rs).
 
 mod api;
@@ -671,6 +702,7 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_fs::init())
         .manage(ClaudeRuns::default())
+        .manage(ApiRuns::default())
         .manage(KnownApps::default())
         .manage(PasteTarget::default())
         .invoke_handler(tauri::generate_handler![
@@ -679,6 +711,9 @@ pub fn run() {
             secret_delete,
             claude_run,
             claude_cancel,
+            anthropic_run,
+            anthropic_cancel,
+            anthropic_has_key,
             claude_info,
             git_status,
             open_terminal,

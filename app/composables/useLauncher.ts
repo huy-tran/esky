@@ -1301,6 +1301,8 @@ function createLauncher() {
     if (s.stream && !s.stream.done) s.stream = null
   }
 
+  const plainText = (m: ChatMsg) => m.blocks.map(b => b.type === 'p' ? b.text : b.type === 'list' ? b.items.map(x => `- ${x}`).join('\n') : '```' + b.lang + '\n' + b.code + '\n```').join('\n\n')
+
   const currentChat = () => chats.value.find(c => c.id === s.chatId)
 
   /** Write the open conversation into the saved chat list (most recent first, 50 kept). */
@@ -1333,6 +1335,12 @@ function createLauncher() {
     s.claudeReady = s.setupStep === 2
     return st
   }
+
+  // Switching backend in Settings → AI changes what "ready" means.
+  watch(() => settings.value.backend, () => {
+    s.claudeStatus = null
+    checkClaude()
+  })
 
   function startNewChat() {
     Object.assign(s, { chatId: `chat${Date.now()}`, messages: [], chatTitle: 'New chat', attach: null, attachText: '' })
@@ -1368,10 +1376,10 @@ function createLauncher() {
     if (s.chatId !== chatId) return
     const ms = s.messages.slice()
     const i = ms.length - 1
-    ms[i] = { ...ms[i]!, blocks: error ? [{ type: 'p', text: `Couldn’t get a reply: ${error}` }] : markdownBlocks(text) }
+    ms[i] = { ...ms[i]!, blocks: error ? [{ type: 'p', text: `Couldn’t get a reply: ${error}` }] : markdownBlocks(text), text: error ? undefined : text }
     Object.assign(s, { messages: ms, stream: null })
     saveChat()
-    if (error) toast('error', 'Claude Code didn’t reply', error)
+    if (error) toast('error', 'Claude didn’t reply', error)
   }
 
   async function send(input?: string) {
@@ -1380,6 +1388,12 @@ function createLauncher() {
     const chat = currentChat()
     const chatId = s.chatId
     const attachText = s.attachText
+    // Earlier turns, for the API key backend. Failed replies are left out with the message that got them.
+    const history: { role: 'user' | 'assistant', content: string }[] = []
+    s.messages.forEach((m, i) => {
+      const next = s.messages[i + 1]
+      if (m.role === 'user' && next?.text) history.push({ role: 'user', content: m.text ?? plainText(m) }, { role: 'assistant', content: next.text })
+    })
     const user: ChatMsg = { role: 'user', blocks: [{ type: 'p', text }], attach: s.attach }
     const title = s.messages.length ? s.chatTitle : trunc(text, 40)
     Object.assign(s, { messages: [...s.messages, user, { role: 'assistant', blocks: [] }], chatInput: '', attach: null, attachText: '', chatTitle: title, stream: { target: 'chat', text: '', pos: 0 } })
@@ -1388,7 +1402,9 @@ function createLauncher() {
     const context = !chat?.sessionId && chat?.context ? `${chat.context}\n\n` : ''
     const clip = attachText ? `Clipboard:\n\`\`\`\n${attachText}\n\`\`\`\n\n` : ''
     let reply = ''
-    run = await claude.stream({ mode: 'chat', prompt: context + clip + text, system: 'chat', sessionId: chat?.sessionId }, (e) => {
+    const prompt = context + clip + text
+    user.text = prompt
+    run = await claude.stream({ mode: 'chat', prompt, system: 'chat', sessionId: chat?.sessionId, history }, (e) => {
       if (e.type === 'session') {
         // Keep the latest session id so the next message continues this conversation.
         chats.value = chats.value.map(c => c.id === chatId ? { ...c, sessionId: e.id, context: undefined } : c)
@@ -1421,7 +1437,7 @@ function createLauncher() {
     Object.assign(s, { view: 'aiResult', ai: { cmd, input, source: from, origOpen: false, result: '', error: '' }, followUp: '', actionsOpen: false, stream: { target: 'ai', text: '', pos: 0 } })
     if (!s.claudeReady || !s.claudeStatus) await checkClaude()
     if (!s.claudeReady) {
-      s.ai = { ...s.ai!, error: s.claudeStatus?.installed ? 'Claude Code isn’t signed in. Run “claude login” in a terminal.' : 'Claude Code isn’t installed. Run “npm install -g @anthropic-ai/claude-code”.' }
+      s.ai = { ...s.ai!, error: s.claudeStatus?.api ? 'Add your Anthropic API key in Settings → AI.' : s.claudeStatus?.installed ? 'Claude Code isn’t signed in. Run “claude login” in a terminal.' : 'Claude Code isn’t installed. Run “npm install -g @anthropic-ai/claude-code”.' }
       s.stream = null
       return
     }
@@ -1448,7 +1464,7 @@ function createLauncher() {
   async function checkAgain() {
     if (s.checking) return
     const st = await checkClaude()
-    if (s.claudeReady) toast('success', 'Claude Code connected', `Signed in as ${st.email ?? 'your Claude account'}`)
+    if (s.claudeReady) toast('success', st.api ? 'API key found' : 'Claude Code connected', st.api ? 'AI Chat uses your Anthropic API key' : `Signed in as ${st.email ?? 'your Claude account'}`)
   }
 
   /** Attach whatever text is on the clipboard to the next message. */

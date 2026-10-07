@@ -1,8 +1,10 @@
 // Claude through the user's Claude Code CLI. Desktop: Rust commands (claude_run / claude_info).
 // Browser preview: the dev-only /api/claude routes. Both speak the same events (utils/claude.ts).
+// With Settings → AI → "Anthropic API key", the desktop app calls the Messages API from Rust instead.
 import { checkRequest, lineParser, parseAuthStatus, systemPrompt, type ClaudeEvent, type ClaudeRequest, type ClaudeStatus, type ClaudeUsage } from '~/utils/claude'
 import { persistRef } from './usePersist'
 import { isTauri } from './usePlatform'
+import { useSettings } from './useSettings'
 
 export interface ClaudeRun {
   /** Resolves when the turn ends (done, error or cancelled). */
@@ -44,6 +46,27 @@ async function streamTauri(req: ClaudeRequest, onEvent: (e: ClaudeEvent) => void
   return { finished, cancel: () => { invoke('claude_cancel', { runId }) } }
 }
 
+/** The API key backend: Rust sends text, done and error events as JSON strings. */
+async function streamApi(req: ClaudeRequest, model: string, onEvent: (e: ClaudeEvent) => void): Promise<ClaudeRun> {
+  const { Channel, invoke } = await import('@tauri-apps/api/core')
+  const runId = ++runSeq
+  const r = checkRequest(req)
+  let resolve!: () => void
+  const finished = new Promise<void>((res) => { resolve = res })
+  const channel = new Channel<string>()
+  channel.onmessage = (line) => {
+    const e = JSON.parse(line) as ClaudeEvent
+    onEvent(e)
+    if (e.type === 'done' || e.type === 'error') resolve()
+  }
+  const messages = [...(req.history ?? []), { role: 'user', content: r.prompt }]
+  invoke('anthropic_run', { runId, model, system: systemPrompt(r.system), messages, quick: r.mode === 'quick', onEvent: channel }).catch((e) => {
+    onEvent({ type: 'error', message: String(e) })
+    resolve()
+  })
+  return { finished, cancel: () => { invoke('anthropic_cancel', { runId }); resolve() } }
+}
+
 async function streamBrowser(req: ClaudeRequest, onEvent: (e: ClaudeEvent) => void): Promise<ClaudeRun> {
   const ctrl = new AbortController()
   const finished = (async () => {
@@ -72,6 +95,7 @@ async function streamBrowser(req: ClaudeRequest, onEvent: (e: ClaudeEvent) => vo
 }
 
 function create() {
+  const { settings } = useSettings()
   const usage = ref<ClaudeUsage | null>(null)
   persistRef('claude.usage', usage)
 
@@ -81,7 +105,8 @@ function create() {
       if (e.type === 'usage') usage.value = e.usage
       onEvent(e)
     }
-    return isTauri() ? streamTauri(req, handle) : streamBrowser(req, handle)
+    if (!isTauri()) return streamBrowser(req, handle)
+    return settings.value.backend === 'api' ? streamApi(req, settings.value.model, handle) : streamTauri(req, handle)
   }
 
   /** Is Claude Code installed and signed in, and as whom? */
@@ -89,6 +114,7 @@ function create() {
     try {
       if (!isTauri()) return await $fetch<ClaudeStatus>('/api/claude/status')
       const { invoke } = await import('@tauri-apps/api/core')
+      if (settings.value.backend === 'api') return { api: true, installed: true, loggedIn: await invoke<boolean>('anthropic_has_key') }
       type Out = { code: number | null, stdout: string, stderr: string }
       const version = await invoke<Out>('claude_info', { what: 'version' })
       if (version.code !== 0) return { installed: false, error: version.stderr.trim() }

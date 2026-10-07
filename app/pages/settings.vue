@@ -4,7 +4,7 @@ import type { TableColumn } from '@nuxt/ui'
 import type { SettingsState } from '~/composables/useSettings'
 import { ACCENT_IDS, accentLabel, accentVars } from '~/utils/accents'
 import { EXTENSIONS, extById, type ExtensionDef } from '~/extensions/registry'
-import type { ClaudeStatus } from '~/utils/claude'
+import { API_MODELS, type ClaudeStatus } from '~/utils/claude'
 import { checkForUpdate, type UpdateCheck } from '~/utils/updates'
 
 const { settings } = useSettings()
@@ -83,6 +83,25 @@ const backends = [
   { value: 'cc', label: 'Claude Code (your subscription)', description: 'Uses the Claude Code CLI signed in on this PC. No API billing.' },
   { value: 'api', label: 'Anthropic API key', description: 'Pay per token with a key from console.anthropic.com.' }
 ]
+// API key backend: the key goes straight to Credential Manager; the page only learns whether one is saved.
+const models = API_MODELS
+const hasKey = ref(false)
+const newKey = ref('')
+const keyBusy = ref(false)
+async function loadKey() {
+  if (!isTauri()) return
+  const { invoke } = await import('@tauri-apps/api/core')
+  hasKey.value = await invoke<boolean>('anthropic_has_key').catch(() => false)
+}
+async function saveKey(value: string) {
+  keyBusy.value = true
+  await setSecret('anthropic', 'key', value.trim())
+  newKey.value = ''
+  await loadKey()
+  keyBusy.value = false
+}
+onMounted(loadKey)
+
 // Claude Code connection and plan usage (AI tab).
 const claude = useClaude()
 const status = ref<ClaudeStatus | null>(null)
@@ -394,9 +413,18 @@ const selectUi = { trailingIcon: 'size-3.5 text-(--muted)', content: 'bg-(--pop-
                 }"
               />
             </div>
-            <UFormField v-if="S.backend === 'api'" label="Anthropic API key" class="max-w-[420px]" :ui="{ root: 'flex flex-col gap-[5px]', label: 'text-[12px] font-semibold text-(--fg)', container: 'mt-0' }">
-              <UInput model-value="sk-ant-api03-••••••••••••••••" type="password" variant="none" class="w-full" :ui="{ base: `${field} px-2.5 font-mono text-[12px]` }" />
-            </UFormField>
+            <template v-if="S.backend === 'api'">
+              <UFormField label="Anthropic API key" class="max-w-[520px]" :ui="{ root: 'flex flex-col gap-[5px]', label: 'text-[12px] font-semibold text-(--fg)', container: 'mt-0', help: 'text-[12px] text-(--muted) mt-1' }" :help="hasKey ? 'Saved in Windows Credential Manager. Paste a new key to replace it.' : 'Create a key at console.anthropic.com. It is kept in Windows Credential Manager.'">
+                <div class="flex gap-2">
+                  <UInput v-model="newKey" type="password" :placeholder="hasKey ? 'sk-ant-•••••••• (saved)' : 'sk-ant-…'" autocomplete="off" variant="none" class="flex-1" :ui="{ base: `${field} px-2.5 font-mono text-[12px]` }" @keydown.enter="newKey.trim() && saveKey(newKey)" />
+                  <UButton color="neutral" variant="outline" :class="`${ghostBtn} h-[30px]`" :disabled="!newKey.trim() || keyBusy" @click="saveKey(newKey)">Save</UButton>
+                  <UButton v-if="hasKey" color="neutral" variant="outline" :class="`${ghostBtn} h-[30px] text-(--err)`" :disabled="keyBusy" @click="saveKey('')">Remove</UButton>
+                </div>
+              </UFormField>
+              <UFormField label="Model" class="max-w-[520px]" :ui="{ root: 'flex flex-col gap-[5px]', label: 'text-[12px] font-semibold text-(--fg)', container: 'mt-0' }">
+                <USelect v-model="S.model" :items="models" variant="none" :class="`${field} w-[260px] px-2`" :ui="selectUi" />
+              </UFormField>
+            </template>
             <div v-if="S.backend === 'cc'" class="flex flex-col border border-(--bd) rounded-[8px] bg-(--surface)">
               <div class="flex items-center gap-3 px-3.5 py-3">
                 <span class="size-2 rounded-full flex-none" :style="{ background: conn.tone }" />
@@ -431,10 +459,10 @@ const selectUi = { trailingIcon: 'size-3.5 text-(--muted)', content: 'bg-(--pop-
               </div>
             </div>
             <div v-else class="flex items-center gap-3 px-3.5 py-3 border border-(--bd) rounded-[8px] bg-(--surface)">
-              <span class="size-2 rounded-full bg-(--faint)" />
+              <span class="size-2 rounded-full" :style="{ background: hasKey ? 'var(--ok)' : 'var(--faint)' }" />
               <div class="flex-1">
-                <div class="font-medium">API key backend isn’t connected yet</div>
-                <div class="text-[12px] text-(--muted) mt-0.5">AI Chat and Quick AI currently run through Claude Code. Switch back to use them.</div>
+                <div class="font-medium">{{ hasKey ? 'Using your API key' : 'No API key saved' }}</div>
+                <div class="text-[12px] text-(--muted) mt-0.5">AI Chat and Quick AI call the Anthropic API directly and are billed per token to your Console account.</div>
               </div>
             </div>
           </div>

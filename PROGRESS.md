@@ -38,6 +38,7 @@ Last updated: 6 Oct 2026 (Git, Password Generator, Script Commands dropped).
 - [x] File Search: an in-memory index of file names in the folders from Settings → Extensions → File Search (skips node_modules, vendor, .git and build folders; reindexed every 15 minutes), Windows' Recent files, text and thumbnail previews, Open, Open With, Reveal, Copy Path, attach to AI Chat; top matches in root search. Rust `files.rs`
 - [x] Media Controls (Windows media sessions: play/pause, next, previous; Spotify-only option), Docker (containers, Compose projects, images through the docker CLI: start, stop, restart, remove, logs in Windows Terminal), Colour Picker (click anywhere, crosshair, Esc cancels; Saved Colours in HEX/RGB/HSL). Rust `media.rs`, `docker.rs`, `colour.rs`
 - [x] Laravel Forge through its current organisation API (`/orgs/{org}/…`): servers, sites with branches, recent deployments, real deploys followed to the end with the log, SSH in Windows Terminal. Calls go through Rust `api.rs`, which adds the token from Credential Manager and only allows each service's own address
+- [x] AI with an Anthropic API key (Settings → AI): the key is saved in Credential Manager, Rust `anthropic.rs` streams from the Messages API (Opus 5.5, Sonnet 5.5 or Haiku 4.5; declined requests fall back server-side), chats replay their earlier turns since the API keeps no sessions
 - [x] GitHub (repositories with live search, your open pull requests, recent workflow runs), Jira (search issues or jump to a key, your open issues, log work with time and comment), Sentry (unresolved issues, releases) as lists inside Esky, through the same Rust client with your tokens
 - [x] Git → Uncommitted Changes: repos with uncommitted changes or unpushed commits in the folders set in Settings → Extensions → Git (default `~\Herd`, `~\Frontend`); changed files, branch, open in editor or Windows Terminal. Rust `git_status` / `open_terminal` in the app, `server/api/git/status.get.ts` in the browser
 - [x] Password Generator: password or passphrase with Bitwarden's options, defaults and rules (EFF long word list); options are saved, generated values never are
@@ -50,9 +51,7 @@ Last updated: 6 Oct 2026 (Git, Password Generator, Script Commands dropped).
 
 ## Placeholders (sample data, actions only show a message)
 
-| Area | What is fake |
-|---|---|
-| Settings → AI | The API-key backend isn't connected |
+None left.
 
 ## Next steps (in order)
 
@@ -60,11 +59,11 @@ Last updated: 6 Oct 2026 (Git, Password Generator, Script Commands dropped).
 2. [x] Real app search and launching: Start menu shortcuts, Microsoft Store apps.
 3. [x] Real Clipboard History: watch the clipboard, honour the ignore list and history settings, paste back. Values copied from the Password Generator aren't recorded.
 4. [x] Real file search (chosen folders, plus Windows' Recent files).
-5. [ ] Paste into the previous app (needed by Snippets, Emoji, Clipboard, Quick AI) and read the selected text for Quick AI.
+5. [x] Paste into the previous app (needed by Snippets, Emoji, Clipboard, Quick AI) and read the selected text for Quick AI.
 6. [x] Laravel Forge API with the saved token (servers, sites, deploy).
 7. [x] Window layouts and system commands (Win32 calls from Rust).
-8. [ ] Agent mode: Claude Code tools with Esky's approval dialog and the allowed-tools list.
-9. [ ] Live currency rates, real updater (Tauri updater plugin), API-key AI backend, model choice in Settings.
+8. [x] ~~Agent mode~~ removed.
+9. [x] Live currency rates, update check (GitHub releases), API-key AI backend, model choice in Settings.
 
 ## Notes for whoever picks this up
 

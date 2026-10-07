@@ -19,6 +19,7 @@ const streamingText = computed(() => s.stream && s.stream.target === 'chat' ? s.
 
 const setupSteps = computed(() => {
   const st = s.claudeStatus
+  if (st?.api) return [{ title: 'Add your Anthropic API key', desc: 'Not saved yet. Create one at console.anthropic.com, then paste it in Settings → AI.', cmd: '', ok: false }]
   return [
     { title: 'Install Claude Code', desc: s.setupStep >= 1 ? `Found claude ${st?.version ?? ''} on PATH` : 'Not found on PATH', cmd: 'npm install -g @anthropic-ai/claude-code', ok: s.setupStep >= 1 },
     { title: 'Sign in with your Claude subscription', desc: s.setupStep >= 2 ? `Signed in as ${st?.email ?? 'your Claude account'}` : s.setupStep >= 1 ? 'Not signed in yet' : 'Waiting for step 1', cmd: 'claude login', ok: s.setupStep >= 2 }
@@ -139,8 +140,8 @@ const copyCode = (file: string, code: string) => {
               <UIcon name="i-lucide-sparkles" class="size-4" />
             </div>
             <div>
-              <div class="text-[15px] font-semibold">Connect Claude Code</div>
-              <div class="text-[12.5px] text-(--muted) mt-0.5">AI Chat runs through your Claude subscription.</div>
+              <div class="text-[15px] font-semibold">{{ s.claudeStatus?.api ? 'Add an API key' : 'Connect Claude Code' }}</div>
+              <div class="text-[12.5px] text-(--muted) mt-0.5">{{ s.claudeStatus?.api ? 'AI Chat runs on your Anthropic API key.' : 'AI Chat runs through your Claude subscription.' }}</div>
             </div>
           </div>
           <div v-for="st in setupSteps" :key="st.title" class="flex gap-2.5 items-start">
@@ -148,7 +149,7 @@ const copyCode = (file: string, code: string) => {
             <div class="flex-1 min-w-0">
               <div class="text-[13px] font-medium">{{ st.title }}</div>
               <div class="text-[12px] text-(--muted) mt-0.5">{{ st.desc }}</div>
-              <div class="mt-1.5 font-mono text-[12px] bg-(--code-bg) border border-(--bd) rounded-[6px] px-2 py-1.5">{{ st.cmd }}</div>
+              <div v-if="st.cmd" class="mt-1.5 font-mono text-[12px] bg-(--code-bg) border border-(--bd) rounded-[6px] px-2 py-1.5">{{ st.cmd }}</div>
             </div>
           </div>
           <div class="flex items-center gap-2.5">
@@ -160,7 +161,7 @@ const copyCode = (file: string, code: string) => {
               <Spinner v-if="s.checking" />{{ s.checking ? 'Checking…' : 'Check again' }}
               <Keys :keys="['↵']" size="accent" />
             </UButton>
-            <a href="#" class="text-[12.5px]" @click.prevent="openSettings({ tab: 'ai' })">Use an API key instead</a>
+            <a href="#" class="text-[12.5px]" @click.prevent="openSettings({ tab: 'ai' })">{{ s.claudeStatus?.api ? 'Open Settings → AI' : 'Use an API key instead' }}</a>
           </div>
         </UCard>
       </div>
