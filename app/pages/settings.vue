@@ -465,6 +465,7 @@ const selectUi = { trailingIcon: 'size-3.5 text-(--muted)', content: 'bg-(--pop-
                 <div class="text-[12px] text-(--muted) mt-0.5">AI Chat and Quick AI call the Anthropic API directly and are billed per token to your Console account.</div>
               </div>
             </div>
+            <SettingsAiCommandsPanel class="mt-2" />
           </div>
 
           <!-- Appearance -->

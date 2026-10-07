@@ -59,7 +59,8 @@ const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 export function systemPrompt(id: SystemId): string | undefined {
   if (id === 'chat') return CHAT_SYSTEM
   if (id === 'check') return CHECK_SYSTEM
-  return Object.hasOwn(QUICK_SYSTEM, id) ? QUICK_SYSTEM[id] : undefined
+  if (Object.hasOwn(QUICK_SYSTEM, id)) return QUICK_SYSTEM[id]
+  return Object.hasOwn(CUSTOM_SYSTEM, id) ? CUSTOM_SYSTEM[id] : undefined
 }
 
 /**
@@ -160,6 +161,9 @@ export const CHAT_SYSTEM = 'You are the AI assistant inside Esky, a keyboard lau
 
 /** Used by "Check again" to confirm Claude Code answers. */
 export const CHECK_SYSTEM = 'Reply with the single word: ok'
+
+/** Your own AI commands' system prompts, filled in by useAiCommands (desktop app). */
+export const CUSTOM_SYSTEM: Record<string, string> = {}
 
 export const QUICK_SYSTEM: Record<string, string> = {
   grammar: 'Fix the grammar, spelling and punctuation of the text the user sends. Keep their meaning, tone and language. Reply with only the corrected text: no preamble, no quotes, no explanation.',

@@ -190,6 +190,7 @@ function createLauncher() {
   const floatId = ref<string | null>(null)
   const chats = ref<SavedChat[]>([])
   const claude = useClaude()
+  const aic = useAiCommands()
   const onboarded = ref(false)
   /** Google Translate's language pair. */
   const trLangs = ref<[string, string]>(defaultPair())
@@ -206,7 +207,8 @@ function createLauncher() {
     persistRef('floatId', floatId),
     persistRef('onboarded', onboarded),
     persistRef('chats', chats),
-    persistRef('translate.langs', trLangs)
+    persistRef('translate.langs', trLangs),
+    aic.ready
   ])
 
   // DOM elements the key map needs to focus or compare against.
@@ -547,6 +549,7 @@ function createLauncher() {
     void apps.version.value // app and quicklink items in ITEMS changed
     void qls.version.value
     void sn.version.value
+    void aic.version.value
     const q = s.query.trim()
     const ql = q.toLowerCase()
     let card: (QuickCard & { run: () => void }) | null = null
@@ -554,7 +557,15 @@ function createLauncher() {
     let def: RegExpMatchArray | null
     let trq: RegExpMatchArray | null
     if (!q) {
-      if (s.selection) sections.push({ title: 'Use selected text', rows: [...AI_CMDS.map(c => ({ key: c.id, title: c.title, sub: 'Quick AI', icon: c.icon, keys: c.keys, kind: 'ai', run: () => runAi(c.id) })), { key: 'gtranslate', title: 'Translate', sub: `Google Translate · ${langName(trLangs.value[0])} ↔ ${langName(trLangs.value[1])}`, icon: 'i-lucide-languages', tile: '#1A73E8', keys: ['Ctrl', '5'], kind: 'cmd', run: () => openTranslate() }] })
+      if (s.selection) {
+        // Ctrl 1–4 built-in Quick AI, Ctrl 5 Google Translate, Ctrl 6–9 your first four AI commands.
+        const ai = (c: { id: string, title: string, icon: string }, keys?: string[]): Row => ({ key: c.id, title: c.title, sub: 'Quick AI', icon: c.icon, keys, kind: 'ai', run: () => runAi(c.id) })
+        sections.push({ title: 'Use selected text', rows: [
+          ...AI_CMDS.map(c => ai(c, c.keys)),
+          { key: 'gtranslate', title: 'Translate', sub: `Google Translate · ${langName(trLangs.value[0])} ↔ ${langName(trLangs.value[1])}`, icon: 'i-lucide-languages', tile: '#1A73E8', keys: ['Ctrl', '5'], kind: 'cmd', run: () => openTranslate() },
+          ...aic.list.value.map((c, i) => ai(c, i < 4 ? ['Ctrl', String(i + 6)] : undefined))
+        ] })
+      }
       sections.push({ title: 'Favourites', rows: favs.value.filter(id => ITEMS[id] && ok(id)).map(id => mk(id)) })
       sections.push({ title: 'Recent', rows: recent.value.filter(id => ITEMS[id] && ok(id)).map(id => mk(id)) })
       sections.push({ title: 'Suggestions', rows: SUGGEST.filter(ok).map(id => mk(id)) })
@@ -733,7 +744,10 @@ function createLauncher() {
     return null
   }
 
-  const aiCmd = () => AI_CMDS.find(c => c.id === (s.ai ? s.ai.cmd : 'grammar'))!
+  const aiCmd = () => {
+    const id = s.ai ? s.ai.cmd : 'grammar'
+    return AI_CMDS.find(c => c.id === id) ?? aic.list.value.find(c => c.id === id) ?? AI_CMDS[0]!
+  }
 
   const actionsModel = computed(() => {
     let target = ''
@@ -2150,11 +2164,16 @@ function createLauncher() {
         searchModel.value.flat[s.sel]?.run()
         return
       }
-      if (ctrl && !sh && /^[1-5]$/.test(k) && s.selection) {
-        stop()
-        if (+k > AI_CMDS.length) openTranslate()
-        else runAi(AI_CMDS[+k - 1]!.id)
-        return
+      if (ctrl && !sh && /^[1-9]$/.test(k) && s.selection) {
+        const n = +k
+        const own = aic.list.value[n - 6]
+        if (n <= AI_CMDS.length || n === 5 || own) {
+          stop()
+          if (n <= AI_CMDS.length) runAi(AI_CMDS[n - 1]!.id)
+          else if (n === 5) openTranslate()
+          else runAi(own!.id)
+          return
+        }
       }
       if (ctrl && sh && kl === 'v') {
         stop()
