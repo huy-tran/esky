@@ -28,6 +28,7 @@ window-vibrancy = "0.6"
 keyring = { version = "3", features = ["windows-native"] }
 png = "0.18"
 base64 = "0.22"
+ureq = { version = "3", features = ["json"] }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62", features = [

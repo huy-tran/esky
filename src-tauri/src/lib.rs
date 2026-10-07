@@ -626,6 +626,16 @@ async fn colour_pick() -> Result<Option<colour::Picked>, String> {
     tauri::async_runtime::spawn_blocking(colour::pick).await.map_err(|e| e.to_string())
 }
 
+// Web services for extensions (see api.rs).
+
+mod api;
+
+/// Call Forge, GitHub, Jira or Sentry with the token saved for that extension.
+#[tauri::command]
+async fn ext_api(ext: String, method: String, url: String, body: Option<serde_json::Value>, user: Option<String>) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || api::request(&ext, &method, &url, body, user)).await.map_err(|e| e.to_string())?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -679,7 +689,8 @@ pub fn run() {
             media_control,
             docker_list,
             docker_action,
-            colour_pick
+            colour_pick,
+            ext_api
         ])
         .setup(|app| {
             let window = app
