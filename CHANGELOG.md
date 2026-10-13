@@ -2,6 +2,12 @@
 
 All notable changes to Esky are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.2.3 - 2026-10-13
+
+### Added
+
+- Floating Notes: add tags by typing `#tag` in a note, then click a tag above the list to show only those notes.
+
 ## 0.2.2 - 2026-10-08
 
 ### Added
