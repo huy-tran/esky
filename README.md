@@ -39,9 +39,9 @@ In the browser build there is no tray: press Alt Space (or click the "Esky is hi
 
 1. Bump `version` in `package.json` (Tauri reads it from there) and in `src-tauri/Cargo.toml`.
 2. Move the notes under **Unreleased** in `CHANGELOG.md` to a new `## <version> - <date>` section.
-3. Commit, then tag and push: `git tag v<version> && git push origin v<version>`.
+3. Commit and push to `master`. That's it, don't tag by hand.
 
-`.github/workflows/release.yml` builds the NSIS and MSI installers on Windows and opens a draft GitHub release with that version's changelog notes. Publish the draft when it looks right.
+`.github/workflows/release.yml` sees the new version in `package.json`, builds the NSIS and MSI installers on Windows, and publishes a GitHub release (creating the `v<version>` tag) with that version's changelog notes. A `package.json` change without a version bump is skipped, because its release already exists. Pushing a `v<version>` tag yourself still works.
 
 ### Jump to a state (dev only)
 

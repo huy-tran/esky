@@ -1,8 +1,11 @@
 name: Release
 
-# Push a tag like v0.1.0 to build the Windows installers and open a draft release.
+# Bumping "version" in package.json on master builds the Windows installers and publishes the release
+# (the release creates the v<version> tag). Pushing a tag like v0.1.0 by hand does the same.
 on:
   push:
+    branches: [master]
+    paths: [package.json]
     tags: ['v*']
   workflow_dispatch:
 
@@ -10,7 +13,29 @@ permissions:
   contents: write
 
 jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      publish: ${{ steps.exists.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # A package.json change that isn't a version bump finds its release already there and stops.
+      - name: Skip if this version is already released
+        id: exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if gh release view "v${version}" >/dev/null 2>&1 && [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
   release:
+    needs: check
+    if: needs.check.outputs.publish == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -67,7 +92,7 @@ jobs:
           tagName: v__VERSION__
           releaseName: Esky v__VERSION__
           releaseBody: ${{ steps.notes.outputs.body }}
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           # latest.json points the updater at the per-user NSIS installer.
           updaterJsonPreferNsis: true
