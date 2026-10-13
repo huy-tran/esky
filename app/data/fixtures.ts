@@ -218,9 +218,9 @@ export const EMOJI: { title: string, items: Emoji[] }[] = ([
 export interface Note { id: string, body: string, updated: string }
 
 export const NOTES_INIT: Note[] = [
-  { id: 'n1', body: 'Northwind standup\n- Soft-delete migration is ready\n- Waiting on client sign-off for the export timezone fix\n- Queue worker memory looks stable', updated: 'Today, 09:05' },
-  { id: 'n2', body: 'Quote ideas\nFixed price for phase 1, hourly for support after launch.', updated: 'Yesterday, 16:40' },
-  { id: 'n3', body: 'Port 5173 gets stuck after Vite crashes. Killing whatever holds the port fixes it.', updated: 'Fri 3 Oct' }
+  { id: 'n1', body: 'Northwind standup\n- Soft-delete migration is ready\n- Waiting on client sign-off for the export timezone fix\n- Queue worker memory looks stable\n#northwind #standup', updated: 'Today, 09:05' },
+  { id: 'n2', body: 'Quote ideas\nFixed price for phase 1, hourly for support after launch.\n#northwind #quotes', updated: 'Yesterday, 16:40' },
+  { id: 'n3', body: 'Port 5173 gets stuck after Vite crashes. Killing whatever holds the port fixes it. #dev', updated: 'Fri 3 Oct' }
 ]
 
 export const SYS_CONFIRM: Record<string, [string, string, string, string]> = {

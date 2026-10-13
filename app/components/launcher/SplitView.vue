@@ -38,6 +38,17 @@ useKeepVisible(box, () => [s.splitSel, s.splitQuery, s.view])
       class="relative flex-none overflow-y-auto pt-1 pr-1.5 pb-2 pl-2 box-border border-r border-(--bd) scroll-thin"
       :style="{ width: s.view === 'notes' ? '34%' : '42%' }"
     >
+      <div v-if="s.view === 'notes' && L.allNoteTags.value.length" class="flex flex-wrap gap-1 px-1 pt-1 pb-1.5">
+        <button
+          v-for="t in L.allNoteTags.value"
+          :key="t.tag"
+          type="button"
+          tabindex="-1"
+          class="h-[22px] px-2 rounded-full border text-[11.5px] font-medium cursor-default"
+          :class="L.activeNoteTag.value === t.tag ? 'bg-(--accent-soft) text-(--accent-fg) border-(--accent)' : 'bg-transparent text-(--muted) border-(--bd)'"
+          @click="s.noteTag = L.activeNoteTag.value === t.tag ? '' : t.tag; s.splitSel = 0"
+        >#{{ t.tag }} <span class="text-(--faint)">{{ t.count }}</span></button>
+      </div>
       <template v-for="(g, gi) in model.groups" :key="g.title">
         <LauncherSectionLabel>{{ g.title }}</LauncherSectionLabel>
         <div

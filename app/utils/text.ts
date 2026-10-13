@@ -50,6 +50,10 @@ export interface BodySeg { t: string, c?: string, chip?: boolean }
 export const phSegs = (t: string): BodySeg[] =>
   t.split(/(\{\w+\})/).filter(Boolean).map(x => /^\{\w+\}$/.test(x) ? { t: x, chip: true } : { t: x })
 
+/** Tags written inline in a note, like #work or #ui-bug. Lower-cased, unique, in order of appearance. */
+export const noteTags = (body: string): string[] =>
+  [...new Set([...body.matchAll(/(?:^|\s)#(\p{L}[\p{L}\p{N}_-]*)/gu)].map(m => m[1]!.toLowerCase()))]
+
 const KEYN: Record<string, string> = { 'ArrowLeft': '←', 'ArrowRight': '→', 'ArrowUp': '↑', 'ArrowDown': '↓', 'Enter': '↵', 'Backspace': '⌫', ' ': 'Space', 'Escape': 'Esc', 'Tab': 'Tab' }
 
 export const keyName = (e: KeyboardEvent) =>

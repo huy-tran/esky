@@ -151,6 +151,8 @@ function createLauncher() {
     deployFrom: 'forgeDetail' as View,
     splitQuery: '',
     splitSel: 0,
+    /** Notes view: the tag the list is filtered to ('' for all notes). */
+    noteTag: '',
     args: {} as Record<string, string>,
     hk: null as null | { id: string, title: string, combo: string[] | null, conflict: string, ownerId?: string | null, reserved?: boolean, note?: string },
     al: null as null | { id: string, title: string, value: string },
@@ -691,6 +693,15 @@ function createLauncher() {
     return { groups, flat: groups.flatMap(g => g.rows) }
   })
 
+  /** Every tag used across notes with its note count, most used first. */
+  const allNoteTags = computed(() => {
+    const counts = new Map<string, number>()
+    for (const n of notes.value) for (const t of noteTags(n.body)) counts.set(t, (counts.get(t) ?? 0) + 1)
+    return [...counts].map(([tag, count]) => ({ tag, count })).sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag))
+  })
+  /** The active filter, dropped once no note carries the tag any more. */
+  const activeNoteTag = computed(() => allNoteTags.value.some(t => t.tag === s.noteTag) ? s.noteTag : '')
+
   const splitModel = computed(() => {
     const v = s.view
     const q = s.splitQuery.trim().toLowerCase()
@@ -709,7 +720,7 @@ function createLauncher() {
       }), ['Installed', 'Available'])
     }
     if (v === 'colors') groups = grp(colours.list.value.filter(x => has(formatColour(x, 'hex'), formatColour(x, 'rgb'))).map(x => ({ key: x.id, title: colourText(x), sub: formatColour(x, 'rgb'), icon: 'i-lucide-pipette', tile: formatColour(x, 'hex'), acc: shortDate(x.at), data: x, g: 'Picked' })))
-    if (v === 'notes') groups = grp(notes.value.filter(x => has(x.body)).map(x => ({ key: x.id, title: x.body.split('\n')[0] || 'Untitled note', sub: x.updated, icon: 'i-lucide-sticky-note', acc: floatId.value === x.id ? 'Floating' : '', accColor: 'var(--warn)', data: x, g: 'Notes' })))
+    if (v === 'notes') groups = grp(notes.value.filter(x => has(x.body) && (!activeNoteTag.value || noteTags(x.body).includes(activeNoteTag.value))).map(x => ({ key: x.id, title: x.body.split('\n')[0] || 'Untitled note', sub: [x.updated, ...noteTags(x.body).map(t => '#' + t)].join(' · '), icon: 'i-lucide-sticky-note', acc: floatId.value === x.id ? 'Floating' : '', accColor: 'var(--warn)', data: x, g: 'Notes' })))
     return { groups, flat: groups.flatMap(g => g.rows) }
   })
   const curSplit = () => {
@@ -767,7 +778,7 @@ function createLauncher() {
     if (v === 'notes') {
       const n = x as Note
       const words = n.body.trim() ? n.body.trim().split(/\s+/).length : 0
-      return { edit: { val: n.body, on: val => editNote(n.id, val) }, meta: [['Updated', n.updated], ['Words', String(words)], ['Floating', floatId.value === n.id ? 'Yes' : 'No']] }
+      return { edit: { val: n.body, on: val => editNote(n.id, val) }, meta: [['Updated', n.updated], ['Tags', noteTags(n.body).map(t => '#' + t).join(' ') || 'None, type #tag in the note'], ['Words', String(words)], ['Floating', floatId.value === n.id ? 'Yes' : 'No']] }
     }
     return null
   }
@@ -1322,6 +1333,7 @@ function createLauncher() {
     notes.value = [{ id, body: '', updated: 'Just now' }, ...notes.value]
     s.splitSel = 0
     s.splitQuery = ''
+    s.noteTag = ''
     setTimeout(() => els.note?.focus(), 40)
   }
 
@@ -2833,7 +2845,7 @@ function createLauncher() {
 
   return {
     s, els, ready, favs, disabled, usage, recent, aliases, hotkeys, installed, notes, clip, floatId, settings,
-    searchModel, clipModel, forgeModel, splitModel, emojiModel, actionsModel, footer,
+    searchModel, clipModel, forgeModel, splitModel, allNoteTags, activeNoteTag, emojiModel, actionsModel, footer,
     apps, qls, sn, files, docker, dockerModel, remote, remoteModel, submitLogWork, forge, openServer, openForgeList, herd, herdModel, openSite, git, gitModel, pw, copyPassword, dict, dictFlat, openDictionary, tr, trLangs, setLang, swapLangs, openTranslate, dev, openDevTool, submitArgs, openWins, switchModel,
     chats, chatGroups, openSavedChat, claude,
     curClip, curSplit, curEmoji, detail, aiCmd, rowKeys, comboOwner, aliasOwner,
