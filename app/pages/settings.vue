@@ -28,16 +28,18 @@ const framed = !isTauri()
 const tab = ref('general')
 const tabTitle = computed(() => TABS.find(t => t.value === tab.value)!.label)
 
-const generalSwitches: [keyof SettingsState, string, string][] = [
-  ['startLogin', 'Start at login', 'Esky runs quietly in the tray after you sign in to Windows.'],
+const generalSwitches = ([
+  ['startLogin', 'Start at login', `Esky runs quietly in the tray after you sign in to ${isLinux ? 'your desktop' : 'Windows'}.`],
   ['activeMonitor', 'Show on active monitor', 'Opens on the screen with your mouse cursor instead of the primary display.'],
   ['closeBlur', 'Close when focus is lost', 'Hides the window when you click outside it.'],
-  ['desktopApps', 'Search desktop apps', 'Apps from the Start menu show up in search.'],
+  ['desktopApps', 'Search desktop apps', isLinux ? 'Apps from your app launcher menu show up in search.' : 'Apps from the Start menu show up in search.'],
   ['storeApps', 'Search Microsoft Store apps', 'Apps installed from the Microsoft Store show up in search.'],
   ['readSelection', 'Read selected text', 'When you open Esky with your hotkey, Quick AI gets what you had selected in that app. Esky copies it with Ctrl C and puts your clipboard back.']
-]
+] as [keyof SettingsState, string, string][]).filter(([k]) => !(isLinux && k === 'storeApps'))
 
 watch(() => S.value.startLogin, on => setAutostart(on))
+
+const secretStore = isLinux ? 'your keyring' : 'Windows Credential Manager'
 
 // Extensions: installed ones (built-ins included); install more from the Store in the launcher.
 const exts = useExtensions()
@@ -306,6 +308,11 @@ const selectUi = { trailingIcon: 'size-3.5 text-(--muted)', content: 'bg-(--pop-
                 <USwitch v-model="(S[k] as boolean)" :aria-label="title" :ui="switchLg" />
               </div>
             </div>
+            <div v-if="isLinux && isTauri()" :class="[card, 'p-4 flex flex-col gap-1.5']">
+              <div class="text-[13.5px] font-medium">Open Esky with a key (Hyprland)</div>
+              <div class="text-[12px] text-(--muted)">Wayland doesn't let apps listen for keys system-wide, so Hyprland runs Esky when you press one, and the running Esky opens. Add this to your Hyprland config (Omarchy: <code>~/.config/hypr/bindings.conf</code>). Esky's own shortcut below only works while it's open.</div>
+              <code class="text-[12px] select-all px-2 py-1.5 rounded-[6px] bg-(--hover) w-fit">{{ HYPR_BIND }}</code>
+            </div>
             <SettingsBackupPanel />
           </div>
 
@@ -441,7 +448,7 @@ const selectUi = { trailingIcon: 'size-3.5 text-(--muted)', content: 'bg-(--pop-
               />
             </div>
             <template v-if="S.backend === 'api'">
-              <UFormField label="Anthropic API key" class="max-w-[520px]" :ui="{ root: 'flex flex-col gap-[5px]', label: 'text-[12px] font-semibold text-(--fg)', container: 'mt-0', help: 'text-[12px] text-(--muted) mt-1' }" :help="hasKey ? 'Saved in Windows Credential Manager. Paste a new key to replace it.' : 'Create a key at console.anthropic.com. It is kept in Windows Credential Manager.'">
+              <UFormField label="Anthropic API key" class="max-w-[520px]" :ui="{ root: 'flex flex-col gap-[5px]', label: 'text-[12px] font-semibold text-(--fg)', container: 'mt-0', help: 'text-[12px] text-(--muted) mt-1' }" :help="hasKey ? `Saved in ${secretStore}. Paste a new key to replace it.` : `Create a key at console.anthropic.com. It is kept in ${secretStore}.`">
                 <div class="flex gap-2">
                   <UInput v-model="newKey" type="password" :placeholder="hasKey ? 'sk-ant-•••••••• (saved)' : 'sk-ant-…'" autocomplete="off" variant="none" class="flex-1" :ui="{ base: `${field} px-2.5 font-mono text-[12px]` }" @keydown.enter="newKey.trim() && saveKey(newKey)" />
                   <UButton color="neutral" variant="outline" :class="`${ghostBtn} h-[30px]`" :disabled="!newKey.trim() || keyBusy" @click="saveKey(newKey)">Save</UButton>
@@ -498,7 +505,7 @@ const selectUi = { trailingIcon: 'size-3.5 text-(--muted)', content: 'bg-(--pop-
           <!-- Appearance -->
           <div v-else-if="tab === 'appearance'" :class="card">
             <div :class="[row, 'border-b border-(--bd)']">
-              <SettingsRow title="Theme" desc="System follows Windows personalisation settings." />
+              <SettingsRow title="Theme" desc="System follows your desktop’s light or dark setting." />
               <UTabs
                 v-model="theme"
                 :items="themeItems"

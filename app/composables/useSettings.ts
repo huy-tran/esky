@@ -42,7 +42,8 @@ const defaults = (): SettingsState => ({
   storeApps: true,
   readSelection: true,
   clipHistory: true,
-  textExpansion: true,
+  // Needs to watch every key, which Wayland doesn't allow.
+  textExpansion: !isLinux,
   histLen: '500',
   keepDays: 30,
   ignorePm: true,

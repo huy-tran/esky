@@ -1,11 +1,15 @@
-//! File Search: an in-memory index of file names in the folders you choose, plus Windows' Recent files.
+//! File Search: an in-memory index of file names in the folders you choose, plus the desktop's recent files.
 
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
+#[cfg(windows)]
 use windows::core::HSTRING;
+#[cfg(windows)]
 use windows::Win32::Storage::EnhancedStorage::PKEY_Link_TargetParsingPath;
+#[cfg(windows)]
 use windows::Win32::System::Com::{CoInitializeEx, CoTaskMemFree, CoUninitialize, COINIT_APARTMENTTHREADED};
+#[cfg(windows)]
 use windows::Win32::UI::Shell::{IShellItem2, SHCreateItemFromParsingName};
 
 /// Folders never worth searching: dependencies, build output, version control.
@@ -101,7 +105,8 @@ pub fn search(query: &str, limit: usize) -> Vec<FileHit> {
     found.into_iter().take(limit).map(|(_, e)| hit(e)).collect()
 }
 
-/// Files you opened recently, from Windows' Recent folder (shortcuts to the real files).
+
+#[cfg(windows)]
 pub fn recent(limit: usize) -> Vec<FileHit> {
     let Some(dir) = std::env::var_os("APPDATA").map(|a| PathBuf::from(a).join("Microsoft\\Windows\\Recent")) else { return vec![] };
     let Ok(entries) = std::fs::read_dir(dir) else { return vec![] };
@@ -155,6 +160,7 @@ pub fn preview_text(path: &str) -> Option<String> {
 }
 
 /// Windows' "Open with" dialog for the file.
+#[cfg(windows)]
 pub fn open_with(path: &str) -> Result<(), String> {
     use std::os::windows::process::CommandExt;
     std::process::Command::new("rundll32.exe")
@@ -166,3 +172,54 @@ pub fn open_with(path: &str) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+
+/// Files you opened recently, from the desktop's recently-used.xbel (GTK apps and most others write it).
+#[cfg(not(windows))]
+pub fn recent(limit: usize) -> Vec<FileHit> {
+    let data = std::env::var_os("XDG_DATA_HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".local/share"));
+    let Ok(xml) = std::fs::read_to_string(data.join("recently-used.xbel")) else { return vec![] };
+    let mut seen = std::collections::HashSet::new();
+    let mut hits: Vec<FileHit> = xml
+        .split("<bookmark ")
+        .skip(1)
+        .filter_map(|b| {
+            let href = b.split("href=\"").nth(1)?.split('"').next()?;
+            let path = PathBuf::from(percent_decode(href.strip_prefix("file://")?));
+            let meta = std::fs::metadata(&path).ok().filter(|m| m.is_file())?;
+            seen.insert(path.clone()).then(|| FileHit {
+                name: path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(),
+                path: path.to_string_lossy().into_owned(),
+                size: meta.len(),
+                modified: ms(meta.modified().ok()),
+            })
+        })
+        .collect();
+    hits.sort_by(|a, b| b.modified.cmp(&a.modified));
+    hits.truncate(limit);
+    hits
+}
+
+#[cfg(not(windows))]
+fn percent_decode(s: &str) -> String {
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%' && i + 2 < b.len() && s.is_char_boundary(i + 1) && s.is_char_boundary(i + 3) {
+            if let Ok(v) = u8::from_str_radix(&s[i + 1..i + 3], 16) {
+                out.push(v);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(b[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// There's no "Open with" dialog on Linux; the page hides that action there.
+#[cfg(not(windows))]
+pub fn open_with(_path: &str) -> Result<(), String> {
+    Err("Open with isn't available on Linux".into())
+}

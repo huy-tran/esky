@@ -754,7 +754,7 @@ function createLauncher() {
     if (v === 'quicklinks') {
       const n = x as Quicklink
       const val = s.args[n.id] ?? ''
-      return { head: { icon: n.icon, tile: n.tile, title: n.name, sub: n.arg ? resolveQ(n, val || '…') : n.url }, input: n.arg ? { label: n.arg, val, ph: `Type a ${n.arg.toLowerCase()}`, hint: `Tip: type “${n.kw} ${n.arg.toLowerCase()}” in root search to skip this step.`, on: setArg } : null, body: { segs: phSegs(n.url), mono: true }, meta: [['Keyword', n.kw, 1], ['Opens in', n.url.startsWith('http') ? 'Your default browser' : 'File Explorer'], ['Alias', aliases.value[n.id] || 'None']] }
+      return { head: { icon: n.icon, tile: n.tile, title: n.name, sub: n.arg ? resolveQ(n, val || '…') : n.url }, input: n.arg ? { label: n.arg, val, ph: `Type a ${n.arg.toLowerCase()}`, hint: `Tip: type “${n.kw} ${n.arg.toLowerCase()}” in root search to skip this step.`, on: setArg } : null, body: { segs: phSegs(n.url), mono: true }, meta: [['Keyword', n.kw, 1], ['Opens in', n.url.startsWith('http') ? 'Your default browser' : fileManager], ['Alias', aliases.value[n.id] || 'None']] }
     }
     if (v === 'windows') {
       const n = x as WinCmd
@@ -797,7 +797,7 @@ function createLauncher() {
       target = e ? e.title : ''
       const fav = !!e?.id && favs.value.includes(e.id)
       // Only results with a file behind them (apps with a known .exe, Herd sites) can be revealed or run elevated.
-      list = [O('open', 'Open', 'i-lucide-corner-down-left', ['↵']), ...(e?.path && e.kind === 'app' ? [O('admin', 'Run as Administrator', 'i-lucide-shield', ['Ctrl', 'Shift', '↵'])] : []), ...(e?.path ? [O('reveal', 'Reveal in Explorer', 'i-lucide-folder-search', ['Ctrl', 'Shift', 'E']), O('path', 'Copy Path', 'i-lucide-copy', ['Ctrl', 'Shift', 'C'])] : []), O('pin', fav ? 'Unpin from Favourites' : 'Pin to Favourites', 'i-lucide-pin', ['Ctrl', 'Shift', 'P']), O('alias', 'Add Alias', 'i-lucide-at-sign', ['Ctrl', 'Shift', 'A']), O('hotkey', 'Set Hotkey', 'i-lucide-keyboard', ['Ctrl', 'Shift', 'H']), O('disable', 'Disable Result', 'i-lucide-eye-off', ['Ctrl', 'Shift', 'D'], true)]
+      list = [O('open', 'Open', 'i-lucide-corner-down-left', ['↵']), ...(e?.path && e.kind === 'app' ? [O('admin', 'Run as Administrator', 'i-lucide-shield', ['Ctrl', 'Shift', '↵'])] : []), ...(e?.path ? [O('reveal', `Reveal in ${fileManager}`, 'i-lucide-folder-search', ['Ctrl', 'Shift', 'E']), O('path', 'Copy Path', 'i-lucide-copy', ['Ctrl', 'Shift', 'C'])] : []), O('pin', fav ? 'Unpin from Favourites' : 'Pin to Favourites', 'i-lucide-pin', ['Ctrl', 'Shift', 'P']), O('alias', 'Add Alias', 'i-lucide-at-sign', ['Ctrl', 'Shift', 'A']), O('hotkey', 'Set Hotkey', 'i-lucide-keyboard', ['Ctrl', 'Shift', 'H']), O('disable', 'Disable Result', 'i-lucide-eye-off', ['Ctrl', 'Shift', 'D'], true)]
     } else if (s.view === 'clipboard') {
       const c = curClip()
       target = c ? trunc(clipPreview(c), 40) : 'Clipboard'
@@ -815,11 +815,11 @@ function createLauncher() {
     } else if (s.view === 'herdList') {
       const x = curSite()
       target = x ? x.name : 'Herd Sites'
-      list = [O('hopen', 'Open in Browser', 'i-lucide-globe', ['↵']), O('hcode', `Open in ${herdEditor().name}`, 'i-lucide-code-xml', ['Ctrl', 'O']), O('hreveal', 'Reveal in Explorer', 'i-lucide-folder-search', ['Ctrl', 'Shift', 'E']), O('hurl', 'Copy URL', 'i-lucide-link', ['Ctrl', 'Shift', 'C']), O('hpath', 'Copy Path', 'i-lucide-copy', ['Ctrl', 'Shift', 'P']), O('hreload', 'Reload Sites', 'i-lucide-refresh-cw', ['Ctrl', 'R'])]
+      list = [O('hopen', 'Open in Browser', 'i-lucide-globe', ['↵']), O('hcode', `Open in ${herdEditor().name}`, 'i-lucide-code-xml', ['Ctrl', 'O']), O('hreveal', `Reveal in ${fileManager}`, 'i-lucide-folder-search', ['Ctrl', 'Shift', 'E']), O('hurl', 'Copy URL', 'i-lucide-link', ['Ctrl', 'Shift', 'C']), O('hpath', 'Copy Path', 'i-lucide-copy', ['Ctrl', 'Shift', 'P']), O('hreload', 'Reload Sites', 'i-lucide-refresh-cw', ['Ctrl', 'R'])]
     } else if (s.view === 'gitList') {
       const r = curRepo()
       target = r ? r.name : 'Uncommitted Changes'
-      list = [O('gopen', `Open in ${editorFor('git').name}`, 'i-lucide-code-xml', ['↵']), O('gterm', 'Open in Terminal', 'i-lucide-square-terminal', ['Ctrl', 'T']), O('greveal', 'Reveal in Explorer', 'i-lucide-folder-search', ['Ctrl', 'Shift', 'E']), O('gpath', 'Copy Path', 'i-lucide-copy', ['Ctrl', 'Shift', 'C']), O('greload', 'Check Again', 'i-lucide-refresh-cw', ['Ctrl', 'R'])]
+      list = [O('gopen', `Open in ${editorFor('git').name}`, 'i-lucide-code-xml', ['↵']), O('gterm', 'Open in Terminal', 'i-lucide-square-terminal', ['Ctrl', 'T']), O('greveal', `Reveal in ${fileManager}`, 'i-lucide-folder-search', ['Ctrl', 'Shift', 'E']), O('gpath', 'Copy Path', 'i-lucide-copy', ['Ctrl', 'Shift', 'C']), O('greload', 'Check Again', 'i-lucide-refresh-cw', ['Ctrl', 'R'])]
     } else if (s.view === 'remoteList') {
       const r = curRemote()
       const src = remote.source.value
@@ -872,7 +872,7 @@ function createLauncher() {
         snippets: [O('split', 'Paste', 'i-lucide-clipboard-paste', ['↵']), O('sncopy', 'Copy', 'i-lucide-copy', ['Ctrl', 'C']), O('snexpand', settings.value.textExpansion ? 'Turn Off Text Expansion' : 'Turn On Text Expansion', 'i-lucide-keyboard', []), O('snedit', 'Edit Snippets', 'i-lucide-pencil', ['Ctrl', 'E'])],
         quicklinks: [O('split', 'Open', 'i-lucide-external-link', ['↵']), O('qedit', 'Edit Quicklinks', 'i-lucide-pencil', ['Ctrl', 'E']), O('qcopy', 'Copy URL', 'i-lucide-copy', ['Ctrl', 'Shift', 'C']), O('alias', 'Add Alias', 'i-lucide-at-sign', ['Ctrl', 'Shift', 'A']), O('hotkey', 'Set Hotkey', 'i-lucide-keyboard', ['Ctrl', 'Shift', 'H'])],
         windows: [O('split', 'Apply Layout', 'i-lucide-app-window', ['↵']), O('hotkey', 'Set Hotkey', 'i-lucide-keyboard', ['Ctrl', 'Shift', 'H'])],
-        files: [O('split', 'Open', 'i-lucide-corner-down-left', ['↵']), O('fwith', 'Open With Visual Studio Code', 'i-lucide-code-xml', ['Ctrl', 'O']), O('fpath', 'Copy Path', 'i-lucide-copy', ['Ctrl', 'Shift', 'C']), O('freveal', 'Reveal in Explorer', 'i-lucide-folder-search', ['Ctrl', 'Shift', 'E']), O('fattach', 'Attach to AI Chat', 'i-lucide-sparkles', ['Ctrl', 'Shift', 'A'])],
+        files: [O('split', 'Open', 'i-lucide-corner-down-left', ['↵']), O('fwith', 'Open With Visual Studio Code', 'i-lucide-code-xml', ['Ctrl', 'O']), O('fpath', 'Copy Path', 'i-lucide-copy', ['Ctrl', 'Shift', 'C']), O('freveal', `Reveal in ${fileManager}`, 'i-lucide-folder-search', ['Ctrl', 'Shift', 'E']), O('fattach', 'Attach to AI Chat', 'i-lucide-sparkles', ['Ctrl', 'Shift', 'A'])],
         store: sx && installed.value.includes(sx.id) ? [O('split', 'Configure', 'i-lucide-settings', ['↵']), O('xuninstall', 'Uninstall', 'i-lucide-trash-2', ['Ctrl', '⌫'], true)] : [O('split', 'Install', 'i-lucide-download', ['↵'])],
         colors: [O('split', 'Copy', 'i-lucide-copy', ['↵']), O('colhex', 'Copy HEX', 'i-lucide-hash', []), O('colrgb', 'Copy RGB', 'i-lucide-palette', []), O('colhsl', 'Copy HSL', 'i-lucide-palette', []), O('colpick', 'Pick New Colour', 'i-lucide-pipette', ['Ctrl', 'N']), O('coldelete', 'Delete', 'i-lucide-trash-2', ['Ctrl', '⌫'], true)],
         notes: [O('nnew', 'New Note', 'i-lucide-square-pen', ['Ctrl', 'N']), O('nfloat', sx && floatId.value === sx.id ? 'Stop Floating' : 'Float on Desktop', 'i-lucide-picture-in-picture-2', ['Ctrl', 'Shift', 'F']), O('ndelete', 'Delete Note', 'i-lucide-trash-2', ['Ctrl', '⌫'], true)],
@@ -925,10 +925,16 @@ function createLauncher() {
   }
 
   /** The tray, or a second launch of Esky. */
-  function openFromTray() {
+  function openFromTray(from?: { app_path: string | null, selection: string | null }) {
     s.target = null
     s.selection = null
-    clearTarget()
+    if (from === undefined) clearTarget()
+    else if (from?.app_path) {
+      // Opened by a key bound outside Esky (Linux): Rust kept the window to paste into.
+      const app = appName(from.app_path)
+      s.target = { app }
+      if (from.selection && settings.value.readSelection) s.selection = { text: from.selection, app }
+    }
     openWin()
   }
 
@@ -1227,7 +1233,7 @@ function createLauncher() {
     if (id === 'sleep') return closeWith('Going to sleep…', () => runSystem('sleep'))
     if (id === 'lock') return closeWith('Screen locked', () => runSystem('lock'))
     // Windows has no public API for Do Not Disturb, so open the page where it's one click.
-    if (id === 'dnd') return closeWith('Opened notification settings', () => openUrl('ms-settings:notifications'))
+    if (id === 'dnd') return isLinux ? toast('info', 'Do Not Disturb isn’t available here', 'Use your notification daemon, e.g. makoctl mode -t dnd') : closeWith('Opened notification settings', () => openUrl('ms-settings:notifications'))
     if (id === 'eject') return ejectAll()
     if (it.go === 'clipboard') return go('clipboard', { clipQuery: '', clipSel: 0 })
     if (it.go === 'chat') return openChat('')
@@ -1790,7 +1796,7 @@ function createLauncher() {
         break
       }
       case 'reveal':
-        if (e?.path) closeWith(`Revealed ${e.title} in File Explorer`, () => revealPath(e.path!))
+        if (e?.path) closeWith(`Revealed ${e.title} in ${fileManager}`, () => revealPath(e.path!))
         else toast('info', 'This result has no file to reveal')
         break
       case 'path':
@@ -1862,7 +1868,7 @@ function createLauncher() {
       }
       case 'freveal': {
         const x = curSplit() as FileEntry | undefined
-        if (x) closeWith(`Revealed ${x.name} in File Explorer`, () => revealPath(x.id))
+        if (x) closeWith(`Revealed ${x.name} in ${fileManager}`, () => revealPath(x.id))
         break
       }
       case 'fattach': {
@@ -1967,7 +1973,7 @@ function createLauncher() {
       }
       case 'hreveal': {
         const x = curSite()
-        if (x) closeWith(`Revealed ${x.name} in File Explorer`, () => revealPath(x.path))
+        if (x) closeWith(`Revealed ${x.name} in ${fileManager}`, () => revealPath(x.path))
         break
       }
       case 'hurl': {
@@ -2001,7 +2007,7 @@ function createLauncher() {
       }
       case 'greveal': {
         const r = curRepo()
-        if (r) closeWith(`Revealed ${r.name} in File Explorer`, () => revealPath(r.path))
+        if (r) closeWith(`Revealed ${r.name} in ${fileManager}`, () => revealPath(r.path))
         break
       }
       case 'gpath': {

@@ -9,6 +9,9 @@ use tauri::{
     AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent,
 };
 
+#[cfg(any(not(windows), esky_check_linux))]
+mod linux;
+
 /// Ask the launcher webview to open (it positions and shows its own window).
 fn show_launcher(app: &AppHandle) {
     let _ = app.emit_to("main", "esky://show", ());
@@ -29,7 +32,7 @@ fn open_settings(app: &AppHandle) {
         .build();
 }
 
-// Extension tokens live in Windows Credential Manager under the "Esky" service.
+// Extension tokens live in Windows Credential Manager (the Secret Service on Linux) under the "Esky" service.
 // `account` is "<extension>.<preference>", e.g. "forge.token".
 
 fn credential(account: &str) -> Result<keyring::Entry, String> {
@@ -304,15 +307,24 @@ async fn git_status(app: AppHandle, roots: Vec<String>) -> Result<Vec<RepoStatus
 }
 
 /// Windows Terminal in `path`, or PowerShell when Windows Terminal isn't installed.
+/// On Linux, the terminal Omarchy (or $TERMINAL) opens.
 #[tauri::command]
 fn open_terminal(path: String) -> Result<(), String> {
-    let wt = Command::new("wt.exe").arg("-d").arg(&path).spawn();
+    #[cfg(not(windows))]
+    return linux::terminal::open(Some(&path), &[]);
+    #[cfg(windows)]
+    open_terminal_windows(&path)
+}
+
+#[cfg(windows)]
+fn open_terminal_windows(path: &str) -> Result<(), String> {
+    let wt = Command::new("wt.exe").arg("-d").arg(path).spawn();
     if wt.is_ok() {
         return Ok(());
     }
     Command::new("powershell.exe")
         .arg("-NoExit")
-        .current_dir(&path)
+        .current_dir(path)
         .spawn()
         .map(|_| ())
         .map_err(|e| format!("Couldn't open a terminal: {e}"))
@@ -322,8 +334,9 @@ fn open_terminal(path: String) -> Result<(), String> {
 
 #[cfg(windows)]
 mod apps;
+#[cfg(not(windows))]
+use linux::apps;
 
-#[cfg(windows)]
 async fn blocking<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> Result<T, String> {
     tauri::async_runtime::spawn_blocking(f).await.map_err(|e| e.to_string())
 }
@@ -333,7 +346,6 @@ async fn blocking<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> 
 #[derive(Default)]
 struct KnownApps(Mutex<HashMap<String, Option<String>>>);
 
-#[cfg(windows)]
 #[tauri::command]
 async fn apps_list(app: AppHandle) -> Result<Vec<apps::App>, String> {
     let list = blocking(apps::list).await??;
@@ -341,7 +353,6 @@ async fn apps_list(app: AppHandle) -> Result<Vec<apps::App>, String> {
     Ok(list)
 }
 
-#[cfg(windows)]
 #[tauri::command]
 async fn app_icons(app: AppHandle, ids: Vec<String>) -> Result<HashMap<String, String>, String> {
     let known = app.state::<KnownApps>().0.lock().unwrap().clone();
@@ -349,7 +360,6 @@ async fn app_icons(app: AppHandle, ids: Vec<String>) -> Result<HashMap<String, S
     blocking(move || apps::icons(&ids, 64)).await
 }
 
-#[cfg(windows)]
 #[tauri::command]
 async fn app_launch(app: AppHandle, id: String, admin: bool) -> Result<(), String> {
     let path = app.state::<KnownApps>().0.lock().unwrap().get(&id).cloned().ok_or("Unknown app")?;
@@ -367,9 +377,10 @@ async fn app_launch(app: AppHandle, id: String, admin: bool) -> Result<(), Strin
 
 #[cfg(windows)]
 mod system;
+#[cfg(not(windows))]
+use linux::system;
 
 /// Lock, sleep, restart, shut down, sign out or empty the Recycle Bin.
-#[cfg(windows)]
 #[tauri::command]
 async fn system_action(action: String) -> Result<(), String> {
     blocking(move || match action.as_str() {
@@ -382,19 +393,16 @@ async fn system_action(action: String) -> Result<(), String> {
     .await?
 }
 
-#[cfg(windows)]
 #[tauri::command]
 async fn recycle_bin_info() -> Result<system::RecycleBin, String> {
     blocking(system::recycle_bin).await?
 }
 
-#[cfg(windows)]
 #[tauri::command]
 async fn removable_drives() -> Result<Vec<system::Drive>, String> {
     blocking(system::removable_drives).await
 }
 
-#[cfg(windows)]
 #[tauri::command]
 async fn eject_drive(letter: String) -> Result<(), String> {
     blocking(move || system::eject(&letter)).await?
@@ -404,6 +412,8 @@ async fn eject_drive(letter: String) -> Result<(), String> {
 
 #[cfg(windows)]
 mod input;
+#[cfg(not(windows))]
+use linux::input;
 
 /// That app's window, kept here so the page can only ever paste into the app you came from.
 #[derive(Default)]
@@ -411,7 +421,6 @@ struct PasteTarget(Mutex<Option<isize>>);
 
 /// Call just before showing the launcher from a hotkey: remembers the app in front and, if
 /// `read_selection`, reads what's selected in it.
-#[cfg(windows)]
 #[tauri::command]
 async fn capture_target(app: AppHandle, read_selection: bool) -> Result<input::Target, String> {
     let (hwnd, target) = blocking(move || input::capture(read_selection)).await?;
@@ -426,7 +435,6 @@ fn clear_target(app: AppHandle) {
 }
 
 /// Paste `text` into the remembered app. Hide the launcher first.
-#[cfg(windows)]
 #[tauri::command]
 async fn paste_to_target(app: AppHandle, text: String) -> Result<(), String> {
     let target = app.state::<PasteTarget>().0.lock().unwrap().ok_or("There's no app to paste into")?;
@@ -437,27 +445,26 @@ async fn paste_to_target(app: AppHandle, text: String) -> Result<(), String> {
 
 #[cfg(windows)]
 mod clipboard;
+#[cfg(not(windows))]
+use linux::clipboard;
 
 /// Where copied images are kept, so they can be shown and pasted again.
 fn clipboard_images(app: &AppHandle) -> Result<std::path::PathBuf, String> {
     Ok(app.path().app_data_dir().map_err(|e| e.to_string())?.join("clipboard"))
 }
 
-#[cfg(windows)]
 #[tauri::command]
 fn clipboard_watch(enabled: bool) {
     clipboard::set_watching(enabled);
 }
 
 /// Put a history entry back on the clipboard.
-#[cfg(windows)]
 #[tauri::command]
 async fn clipboard_copy(text: Option<String>, image_file: Option<String>, files: Option<Vec<String>>) -> Result<(), String> {
     blocking(move || clipboard::entry_formats(text, image_file, files).map(|f| input::put(&f))).await?
 }
 
 /// Paste a history entry into the app Esky was opened from.
-#[cfg(windows)]
 #[tauri::command]
 async fn clipboard_paste(app: AppHandle, text: Option<String>, image_file: Option<String>, files: Option<Vec<String>>) -> Result<(), String> {
     let target = app.state::<PasteTarget>().0.lock().unwrap().ok_or("There's no app to paste into")?;
@@ -466,9 +473,10 @@ async fn clipboard_paste(app: AppHandle, text: Option<String>, image_file: Optio
 
 #[cfg(windows)]
 mod ocr;
+#[cfg(not(windows))]
+use linux::ocr;
 
 /// The text in a saved clipboard image (Windows OCR). Only files in Esky's clipboard folder.
-#[cfg(windows)]
 #[tauri::command]
 async fn clipboard_ocr(app: AppHandle, file: String) -> Result<String, String> {
     let dir = clipboard_images(&app)?;
@@ -490,7 +498,6 @@ fn clipboard_forget_image(app: AppHandle, file: String) -> Result<(), String> {
 }
 
 /// Copy text that clipboard history tools (Esky's, Windows' Win+V) shouldn't keep, e.g. a new password.
-#[cfg(windows)]
 #[tauri::command]
 fn copy_private(text: String) {
     clipboard::copy_private(&text);
@@ -500,16 +507,16 @@ fn copy_private(text: String) {
 
 #[cfg(windows)]
 mod expand;
+#[cfg(not(windows))]
+use linux::expand;
 
 /// The snippet keywords to expand as you type; an empty list turns expansion off.
-#[cfg(windows)]
 #[tauri::command]
 fn snippet_keywords(keywords: Vec<String>) {
     expand::set_keywords(keywords);
 }
 
 /// Replace the keyword just typed (`keyword_chars` characters) with the snippet text.
-#[cfg(windows)]
 #[tauri::command]
 async fn snippet_expand(keyword_chars: usize, text: String) -> Result<(), String> {
     blocking(move || {
@@ -521,7 +528,6 @@ async fn snippet_expand(keyword_chars: usize, text: String) -> Result<(), String
 }
 
 /// Delete the keyword just typed, for a snippet that asks for values before it's pasted.
-#[cfg(windows)]
 #[tauri::command]
 async fn snippet_erase(keyword_chars: usize) -> Result<(), String> {
     blocking(move || expand::erase(keyword_chars)).await
@@ -600,18 +606,22 @@ fn save_backup(app: AppHandle, json: String) -> Result<String, String> {
 
 #[cfg(windows)]
 mod switcher;
+#[cfg(not(windows))]
+use linux::switcher;
 
 /// The open app windows, most recently used first.
-#[cfg(windows)]
 #[tauri::command]
 async fn windows_list() -> Result<Vec<switcher::OpenWindow>, String> {
     blocking(switcher::list).await
 }
 
 /// Icons for programs (.exe paths), as PNG data URLs. Programs without one are left out.
-#[cfg(windows)]
 #[tauri::command]
 async fn exe_icons(paths: Vec<String>) -> Result<HashMap<String, String>, String> {
+    // On Linux the "paths" are window classes, and the icons come from their desktop files.
+    #[cfg(not(windows))]
+    return blocking(move || apps::class_icons(&paths)).await;
+    #[cfg(windows)]
     blocking(move || {
         paths
             .into_iter()
@@ -622,13 +632,11 @@ async fn exe_icons(paths: Vec<String>) -> Result<HashMap<String, String>, String
     .await
 }
 
-#[cfg(windows)]
 #[tauri::command]
 async fn window_focus(id: isize) -> Result<(), String> {
     blocking(move || switcher::focus(id)).await?
 }
 
-#[cfg(windows)]
 #[tauri::command]
 async fn window_close(id: isize) -> Result<(), String> {
     blocking(move || switcher::close(id)).await?
@@ -638,9 +646,10 @@ async fn window_close(id: isize) -> Result<(), String> {
 
 #[cfg(windows)]
 mod window;
+#[cfg(not(windows))]
+use linux::window;
 
 /// Move or size the app Esky was opened from.
-#[cfg(windows)]
 #[tauri::command]
 async fn window_layout(app: AppHandle, layout: String, rect: Option<[f64; 4]>) -> Result<(), String> {
     let target = app.state::<PasteTarget>().0.lock().unwrap().ok_or("Open Esky from another app first: there's no window to arrange")?;
@@ -649,11 +658,9 @@ async fn window_layout(app: AppHandle, layout: String, rect: Option<[f64; 4]>) -
 
 // File Search (see files.rs).
 
-#[cfg(windows)]
 mod files;
 
 /// Index the folders from the File Search preferences. Returns how many files were found.
-#[cfg(windows)]
 #[tauri::command]
 async fn files_index(app: AppHandle, folders: Vec<String>) -> Result<usize, String> {
     let home = app.path().home_dir().map_err(|e| e.to_string())?;
@@ -661,13 +668,11 @@ async fn files_index(app: AppHandle, folders: Vec<String>) -> Result<usize, Stri
     blocking(move || files::rebuild(&roots)).await
 }
 
-#[cfg(windows)]
 #[tauri::command]
 async fn files_search(query: String) -> Result<Vec<files::FileHit>, String> {
     blocking(move || files::search(&query, 60)).await
 }
 
-#[cfg(windows)]
 #[tauri::command]
 async fn files_recent() -> Result<Vec<files::FileHit>, String> {
     blocking(|| files::recent(30)).await
@@ -680,7 +685,6 @@ struct FilePreview {
 }
 
 /// The start of a text file, or a thumbnail (photos, PDFs) or icon for anything else.
-#[cfg(windows)]
 #[tauri::command]
 async fn file_preview(path: String) -> Result<FilePreview, String> {
     blocking(move || {
@@ -694,7 +698,6 @@ async fn file_preview(path: String) -> Result<FilePreview, String> {
     .await?
 }
 
-#[cfg(windows)]
 #[tauri::command]
 async fn file_open_with(path: String) -> Result<(), String> {
     blocking(move || {
@@ -710,8 +713,9 @@ async fn file_open_with(path: String) -> Result<(), String> {
 
 #[cfg(windows)]
 mod media;
+#[cfg(not(windows))]
+use linux::media;
 
-#[cfg(windows)]
 #[tauri::command]
 async fn media_control(action: String, spotify_only: bool) -> Result<media::NowPlaying, String> {
     blocking(move || media::control(&action, spotify_only)).await?
@@ -719,16 +723,13 @@ async fn media_control(action: String, spotify_only: bool) -> Result<media::NowP
 
 // Docker (see docker.rs).
 
-#[cfg(windows)]
 mod docker;
 
-#[cfg(windows)]
 #[tauri::command]
 async fn docker_list(kind: String, host: String) -> Result<Vec<serde_json::Value>, String> {
     blocking(move || docker::list(&kind, &host)).await?
 }
 
-#[cfg(windows)]
 #[tauri::command]
 async fn docker_action(kind: String, action: String, id: String, host: String) -> Result<(), String> {
     blocking(move || {
@@ -745,9 +746,10 @@ async fn docker_action(kind: String, action: String, id: String, host: String) -
 
 #[cfg(windows)]
 mod colour;
+#[cfg(not(windows))]
+use linux::colour;
 
 /// Pick a colour from anywhere on screen. Hide the launcher first. None if cancelled.
-#[cfg(windows)]
 #[tauri::command]
 async fn colour_pick() -> Result<Option<colour::Picked>, String> {
     // Its own thread: the hooks need a message loop and must not block other commands.
@@ -804,6 +806,14 @@ fn open_ssh(user: String, host: String, port: u16) -> Result<(), String> {
     }
     let target = format!("{user}@{host}");
     let port = port.to_string();
+    #[cfg(not(windows))]
+    return linux::terminal::open(None, &["ssh", "-p", &port, &target]);
+    #[cfg(windows)]
+    open_ssh_windows(&host, &port, &target)
+}
+
+#[cfg(windows)]
+fn open_ssh_windows(host: &str, port: &str, target: &str) -> Result<(), String> {
     if Command::new("wt.exe").args(["new-tab", "--title", &host, "ssh", "-p", &port, &target]).spawn().is_ok() {
         return Ok(());
     }
@@ -814,11 +824,55 @@ fn open_ssh(user: String, host: String, port: u16) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// Esky started a second time. On Windows that just opens the launcher. On Linux it is the Hyprland
+/// keybinding (`esky --toggle`): global shortcuts don't work on Wayland, so the key runs Esky and this
+/// notes the app in front, as the hotkey does on Windows, before the page opens.
+fn second_launch(app: &AppHandle, args: &[String]) {
+    #[cfg(not(windows))]
+    {
+        let (window, target) = linux::input::capture(true);
+        *app.state::<PasteTarget>().0.lock().unwrap() = window;
+        let toggle = args.iter().any(|a| a == "--toggle");
+        let _ = app.emit_to("main", "esky://show", serde_json::json!({ "hotkey": true, "toggle": toggle, "target": target }));
+    }
+    #[cfg(windows)]
+    {
+        let _ = args;
+        show_launcher(app);
+    }
+}
+
+/// A program started from a launcher or keybinding often has a bare PATH. Take the one a login shell
+/// has, so `claude`, `git` and `docker` are found as they are in a terminal.
+#[cfg(not(windows))]
+fn adopt_login_path() {
+    let shell = std::env::var("SHELL").ok().filter(|s| s.starts_with('/') && std::path::Path::new(s).exists()).unwrap_or_else(|| "/bin/sh".into());
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let out = Command::new(shell)
+            .args(["-l", "-i", "-c", "printf '__PATH__%s__PATH__' \"$PATH\""])
+            .stdin(Stdio::null())
+            .stderr(Stdio::null())
+            .output();
+        let _ = tx.send(out);
+    });
+    // A shell that waits for input must not hold Esky up.
+    let Ok(Ok(out)) = rx.recv_timeout(std::time::Duration::from_secs(5)) else { return };
+    let text = String::from_utf8_lossy(&out.stdout).into_owned();
+    let Some(login) = text.split("__PATH__").nth(1).filter(|p| !p.is_empty()) else { return };
+    let current = std::env::var("PATH").unwrap_or_default();
+    let mut seen = std::collections::HashSet::new();
+    let merged: Vec<&str> = login.split(':').chain(current.split(':')).filter(|d| !d.is_empty() && seen.insert(*d)).collect();
+    std::env::set_var("PATH", merged.join(":"));
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(not(windows))]
+    adopt_login_path();
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            show_launcher(app);
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            second_launch(app, &args);
         }))
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::new().build())
@@ -893,10 +947,8 @@ pub fn run() {
                 .expect("launcher window is defined in tauri.conf.json");
 
             // Clipboard History records once the page turns it on (it knows the setting).
-            #[cfg(windows)]
             clipboard::start(app.handle().clone(), clipboard_images(app.handle())?);
             // Snippet expansion waits for keywords from the page (none until it sends them).
-            #[cfg(windows)]
             expand::start(app.handle().clone());
 
             // Mica on Windows 11, Acrylic on Windows 10. The page falls back to --win-bg.

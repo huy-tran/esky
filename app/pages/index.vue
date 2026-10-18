@@ -21,7 +21,11 @@ if (tauri) {
     }))
     // Tray icon, tray menu and a second launch of the app all ask the launcher to open.
     const { listen } = await import('@tauri-apps/api/event')
-    unlisten.push(await listen('esky://show', () => L.openFromTray()))
+    unlisten.push(await listen<{ toggle?: boolean, target?: { app_path: string | null, selection: string | null } } | null>('esky://show', (e) => {
+      // On Linux the Hyprland key runs `esky --toggle`; Rust has already noted the app in front.
+      if (e.payload?.toggle && s.open) s.open = false
+      else L.openFromTray(e.payload?.target)
+    }))
   })
   onBeforeUnmount(() => unlisten.forEach(u => u()))
 

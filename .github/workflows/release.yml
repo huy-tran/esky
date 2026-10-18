@@ -1,6 +1,6 @@
 name: Release
 
-# Bumping "version" in package.json on master builds the Windows installers and publishes the release
+# Bumping "version" in package.json on master builds the Windows installers and the Linux AppImage and publishes the release
 # (the release creates the v<version> tag). Pushing a tag like v0.1.0 by hand does the same.
 on:
   push:
@@ -96,3 +96,43 @@ jobs:
           prerelease: false
           # latest.json points the updater at the per-user NSIS installer.
           updaterJsonPreferNsis: true
+
+  # After the Windows job, so the release and latest.json exist before the AppImage is added to them.
+  release-linux:
+    needs: [check, release]
+    if: needs.check.outputs.publish == 'true'
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install the Tauri build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+
+      - run: npm ci
+
+      # Only the AppImage: it is the one Linux format the updater can replace in place, and it runs on Arch.
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ESKY_UPDATE_REPO: ${{ github.repository }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: v__VERSION__
+          releaseName: Esky v__VERSION__
+          releaseDraft: false
+          prerelease: false
+          args: --bundles appimage

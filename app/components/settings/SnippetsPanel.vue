@@ -47,8 +47,8 @@ const switchLg = {
   <div class="flex flex-col gap-4">
     <div :class="card">
       <div class="px-4 py-3.5 flex items-center gap-4">
-        <SettingsRow title="Text expansion" desc="Type a snippet's keyword in any app and Esky replaces it with the snippet. Esky only looks at the last few characters you typed and keeps nothing." />
-        <USwitch v-model="settings.textExpansion" aria-label="Text expansion" :ui="switchLg" />
+        <SettingsRow title="Text expansion" :desc="isLinux ? 'Not available on Linux: Wayland doesn\'t let apps watch what you type. Snippets still paste from Esky.' : 'Type a snippet\'s keyword in any app and Esky replaces it with the snippet. Esky only looks at the last few characters you typed and keeps nothing.'" />
+        <USwitch v-model="settings.textExpansion" :disabled="isLinux" aria-label="Text expansion" :ui="switchLg" />
       </div>
     </div>
 
