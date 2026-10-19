@@ -1,6 +1,6 @@
 [package]
 name = "esky"
-version = "0.2.3"
+version = "0.3.0"
 description = "Keyboard launcher for Windows and Linux"
 license = "MIT"
 authors = ["Esky contributors"]

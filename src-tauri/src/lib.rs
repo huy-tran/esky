@@ -866,10 +866,37 @@ fn adopt_login_path() {
     std::env::set_var("PATH", merged.join(":"));
 }
 
+/// Puts Esky in the app launcher (Walker on Omarchy) with its icon: an AppImage has no installer to
+/// write a .desktop file. Kept up to date, so it follows the AppImage if you move it.
+#[cfg(not(windows))]
+fn register_desktop_entry() {
+    let Some(home) = std::env::var_os("HOME").map(std::path::PathBuf::from) else { return };
+    let data = std::env::var_os("XDG_DATA_HOME").map(std::path::PathBuf::from).unwrap_or_else(|| home.join(".local/share"));
+    // $APPIMAGE is the AppImage file itself; the running binary lives in a temporary mount.
+    let Some(exe) = std::env::var_os("APPIMAGE").map(std::path::PathBuf::from).or_else(|| std::env::current_exe().ok()) else { return };
+    let icons = data.join("icons/hicolor/128x128/apps");
+    let icon = icons.join("esky.png");
+    if std::fs::create_dir_all(&icons).is_ok() && std::fs::read(&icon).ok().as_deref() != Some(include_bytes!("../icons/128x128.png").as_slice()) {
+        let _ = std::fs::write(&icon, include_bytes!("../icons/128x128.png"));
+    }
+    let apps = data.join("applications");
+    let entry = format!(
+        "[Desktop Entry]\nType=Application\nName=Esky\nComment=Keyboard launcher\nExec=\"{}\" %U\nIcon=esky\nTerminal=false\nCategories=Utility;\n",
+        exe.to_string_lossy().replace('"', "\\\"")
+    );
+    let file = apps.join("esky.desktop");
+    if std::fs::create_dir_all(&apps).is_ok() && std::fs::read_to_string(&file).ok().as_deref() != Some(entry.as_str()) {
+        let _ = std::fs::write(&file, entry);
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(not(windows))]
-    adopt_login_path();
+    {
+        adopt_login_path();
+        register_desktop_entry();
+    }
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             second_launch(app, &args);
