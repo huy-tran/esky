@@ -630,9 +630,10 @@ function createLauncher() {
       sections.push({ title: 'Dictionary', rows: [defineRow(def[1]!.trim())] })
     } else if ((trq = q.match(/^(?:tr|translate)\s+(.+)$/i))) {
       sections.push({ title: 'Google Translate', rows: [translateRow(trq[1]!.trim())] })
-    } else if (/^reminders?$/i.test(q)) {
-      sections.push({ title: 'Reminders', rows: reminderRows() })
-    } else if ((rem = q.match(/^reminds+(.+)$/i))) {
+    } else if (/^\/?remind(?:ers?)?$/i.test(q)) {
+      // "remind" on its own: how to add one, then what is pending.
+      sections.push({ title: 'Reminders', rows: [newReminderRow(''), ...reminderRows().filter(r => r.key !== 'rm:none')] })
+    } else if ((rem = q.match(/^\/?remind\s+(.+)$/i))) {
       sections.push({ title: 'Reminder', rows: [newReminderRow(rem[1]!)] })
     } else {
       const t = quick(q, quickOpts())
