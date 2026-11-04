@@ -27,6 +27,8 @@ import { appName, useApps } from './useApps'
 import { useHotkeys } from './useHotkeys'
 import { useRates } from './useRates'
 import { useQuicklinks } from './useQuicklinks'
+import { useReminders } from './useReminders'
+import { parseReminder, relLabel, whenLabel } from '~/utils/remind'
 import { fillArgs, snippetArgs, useSnippets, type SnippetArg } from './useSnippets'
 import { fileKind, useFiles } from './useFiles'
 import { useDocker, type DockerKind } from './useDocker'
@@ -198,6 +200,7 @@ function createLauncher() {
   const claude = useClaude()
   const aic = useAiCommands()
   const openWins = useOpenWindows()
+  const reminders = useReminders()
   const onboarded = ref(false)
   /** Google Translate's language pair. */
   const trLangs = ref<[string, string]>(defaultPair())
@@ -569,6 +572,35 @@ function createLauncher() {
     }
   }
 
+  /** "remind 10am standup": the row that saves it, or a hint when no time could be read. */
+  function newReminderRow(text: string): Row {
+    const p = parseReminder(text)
+    if (!p) return { key: 'remind:hint', title: 'Remind me… e.g. “remind 10am standup”', sub: 'Also: in 20m, tomorrow 9am, friday 3pm, 25 dec', icon: 'i-lucide-bell', tile: '#CA8A04', kind: 'cmd', run: () => {} }
+    const when = whenLabel(p.at)
+    return {
+      key: 'remind:new',
+      title: `Remind me ${when.toLowerCase()}: ${p.text}`,
+      sub: p.rolled ? 'That time has passed today, so this is for tomorrow' : relLabel(p.at),
+      icon: 'i-lucide-bell-plus',
+      tile: '#CA8A04',
+      kind: 'cmd',
+      run: () => closeWith(`Reminder set for ${when.toLowerCase()}`, () => reminders.add(p.text, p.at))
+    }
+  }
+
+  /** Pending reminders (Enter cancels one), then the ones that just went off (Enter snoozes 10 minutes). */
+  function reminderRows(): Row[] {
+    const row = (r: { id: string, text: string, at: number, fired?: number }): Row => r.fired
+      ? { key: `rm:${r.id}`, title: r.text, sub: `Went off ${relLabel(r.fired)} · Enter to snooze 10 minutes`, icon: 'i-lucide-bell-ring', tile: '#64748B', kind: 'cmd', run: () => { reminders.snooze(r.id); toast('success', 'Snoozed for 10 minutes', trunc(r.text, 40)) } }
+      : { key: `rm:${r.id}`, title: r.text, sub: `${whenLabel(r.at)} · ${relLabel(r.at)} · Enter to cancel`, icon: 'i-lucide-bell', tile: '#CA8A04', kind: 'cmd', run: () => {
+          const old = reminders.list.value
+          reminders.remove(r.id)
+          toast('info', 'Reminder cancelled', trunc(r.text, 40), { label: 'Undo', run: () => { reminders.list.value = old } })
+        } }
+    const rows = [...reminders.pending.value, ...reminders.recent.value].map(row)
+    return rows.length ? rows : [{ key: 'rm:none', title: 'No reminders', sub: 'Try “remind 10am standup”', icon: 'i-lucide-bell-off', tile: '#64748B', kind: 'cmd', run: () => {} }]
+  }
+
   const searchModel = computed(() => {
     void apps.version.value // app and quicklink items in ITEMS changed
     void qls.version.value
@@ -580,6 +612,7 @@ function createLauncher() {
     const sections: Section[] = []
     let def: RegExpMatchArray | null
     let trq: RegExpMatchArray | null
+    let rem: RegExpMatchArray | null
     if (!q) {
       if (s.selection) {
         // Ctrl 1 to 4 built-in Quick AI, Ctrl 5 Google Translate, Ctrl 6 to 9 your first four AI commands.
@@ -597,6 +630,10 @@ function createLauncher() {
       sections.push({ title: 'Dictionary', rows: [defineRow(def[1]!.trim())] })
     } else if ((trq = q.match(/^(?:tr|translate)\s+(.+)$/i))) {
       sections.push({ title: 'Google Translate', rows: [translateRow(trq[1]!.trim())] })
+    } else if (/^reminders?$/i.test(q)) {
+      sections.push({ title: 'Reminders', rows: reminderRows() })
+    } else if ((rem = q.match(/^reminds+(.+)$/i))) {
+      sections.push({ title: 'Reminder', rows: [newReminderRow(rem[1]!)] })
     } else {
       const t = quick(q, quickOpts())
       if (t && 'card' in t) {
@@ -2840,6 +2877,8 @@ function createLauncher() {
     rates.refresh()
     clipboard.start()
     startExpansion()
+    // Only the launcher window checks reminders, or each notification would be sent once per window.
+    if (location.pathname === '/') reminders.start()
     files.start()
     // Herd sites also appear in root search.
     if (exts.isActive('herd')) loadHerd()

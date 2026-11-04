@@ -1,7 +1,7 @@
 {
   "name": "esky",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.4.0",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -25,6 +25,7 @@
     "@tauri-apps/plugin-clipboard-manager": "^2.4.1",
     "@tauri-apps/plugin-fs": "^2.6.0",
     "@tauri-apps/plugin-global-shortcut": "^2.4.0",
+    "@tauri-apps/plugin-notification": "^2.8.0",
     "@tauri-apps/plugin-opener": "^2.7.0",
     "@tauri-apps/plugin-store": "^2.5.0",
     "nuxt": "4.5.2",

@@ -15,7 +15,7 @@ Press Alt Space anywhere (on Linux, through the Hyprland key below) to search ap
 | ![Google Translate between English and Spanish](docs/screenshots/translate.png) | ![Developer Tools formatting JSON](docs/screenshots/devtools.png) |
 | **Google Translate.** Between two languages you pick, in either direction. | **Developer Tools.** JSON, Base64, URL encoding, hashes, timestamps, JWTs and UUIDs. |
 
-Also: snippets with typed-keyword expansion, quicklinks, window layouts and switching, file search, colour picker, media controls, password generator, dictionary, and extensions for Laravel Forge, Herd, GitHub, Jira, Sentry, Docker and Google Calendar.
+Also: reminders (`remind 10am standup`), snippets with typed-keyword expansion, quicklinks, window layouts and switching, file search, colour picker, media controls, password generator, dictionary, and extensions for Laravel Forge, Herd, GitHub, Jira, Sentry, Docker and Google Calendar.
 
 ![Settings window, Extensions tab](docs/screenshots/settings.png)
 

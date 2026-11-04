@@ -16,6 +16,7 @@ Last updated: 6 Oct 2026 (Git, Password Generator, Script Commands dropped).
 - [x] AI Chat and Quick AI through the user's Claude Code login (streaming, saved chats, follow-ups continue the session)
 - [x] Plan usage (5-hour and weekly) in Settings → AI, with Refresh
 - [x] Floating notes (saved)
+- [x] Reminders (`utils/remind.ts`, `useReminders.ts`): `remind <time> <text>` in root search, `reminders` lists, cancels and snoozes; checked every 20 seconds by the launcher window, shown with tauri-plugin-notification. Parser tested; notification not yet tested in the desktop app
 - [x] One extension registry: Store and Settings share it; on/off switch hides commands from search
 - [x] Generated preference forms per extension, with validation; URL commands use them (GitHub, Jira, Sentry, Laravel Docs, Tailwind)
 - [x] Settings preview at real window size in the browser; real version and Windows info in About; Esky logo everywhere

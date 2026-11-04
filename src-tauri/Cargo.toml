@@ -1,6 +1,6 @@
 [package]
 name = "esky"
-version = "0.3.0"
+version = "0.4.0"
 description = "Keyboard launcher for Windows and Linux"
 license = "MIT"
 authors = ["Esky contributors"]
@@ -29,6 +29,7 @@ png = "0.18"
 base64 = "0.22"
 ureq = { version = "3", features = ["json"] }
 tauri-plugin-updater = "2"
+tauri-plugin-notification = "2"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62", features = [

@@ -76,7 +76,7 @@ function diffLabel(min: number) {
 }
 
 /** "3pm", "3:30 pm", "15:00", "noon" → [hour, minute]. */
-function parseClock(s: string): [number, number] | null {
+export function parseClock(s: string): [number, number] | null {
   const t = s.trim().toLowerCase()
   if (t === 'noon' || t === 'midday') return [12, 0]
   if (t === 'midnight') return [0, 0]

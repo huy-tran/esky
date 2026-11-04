@@ -2,6 +2,12 @@
 
 All notable changes to Esky are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.4.0 - 2026-11-04
+
+### Added
+
+- Reminders: type `remind 10am standup`, `remind in 20m stretch` or `remind tomorrow 9am invoice` and Esky shows a notification when it is due. Type `reminders` to see, cancel or snooze them. Esky needs to be running; a reminder missed while it was closed shows as missed when it starts.
+
 ## 0.3.0 - 2026-10-19
 
 ### Added
