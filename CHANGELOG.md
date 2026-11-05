@@ -2,6 +2,12 @@
 
 All notable changes to Esky are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.5.0 - 2026-11-06
+
+### Added
+
+- App hotkeys now toggle: press an app's hotkey while it is in front to minimise it. Grok Bot comes with Ctrl Alt B by default.
+
 ## 0.4.1 - 2026-11-04
 
 ### Fixed

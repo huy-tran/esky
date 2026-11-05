@@ -978,6 +978,12 @@ function createLauncher() {
 
   /** A command's own hotkey, pressed while Esky is hidden. Quick AI and Google Translate work on the selection. */
   async function activateFromHotkey(id: string) {
+    // An app's hotkey toggles: pressed while the app is in front, it minimises it.
+    const app = ITEMS[id]?.app
+    if (app && isTauri()) {
+      const { invoke } = await import('@tauri-apps/api/core')
+      if (await invoke<boolean>('app_minimize_if_front', { id: app.id, name: ITEMS[id]!.title }).catch(() => false)) return
+    }
     await captureFrom(!!(ITEMS[id]?.ai || ITEMS[id]?.go === 'translate' || ITEMS[id]?.go === 'devtool') && settings.value.readSelection)
     activate(id)
   }

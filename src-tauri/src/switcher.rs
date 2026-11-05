@@ -6,7 +6,7 @@ use windows::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_CLOAKED};
 use windows::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId, OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION};
 use windows::Win32::UI::WindowsAndMessaging::{
     EnumWindows, GetForegroundWindow, GetWindow, GetWindowLongW, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId, IsIconic, IsWindow,
-    IsWindowVisible, PostMessageW, SetForegroundWindow, ShowWindow, BringWindowToTop, GWL_EXSTYLE, GW_OWNER, SW_RESTORE, WM_CLOSE, WS_EX_APPWINDOW,
+    IsWindowVisible, PostMessageW, SetForegroundWindow, ShowWindow, BringWindowToTop, GWL_EXSTYLE, GW_OWNER, SW_MINIMIZE, SW_RESTORE, WM_CLOSE, WS_EX_APPWINDOW,
     WS_EX_TOOLWINDOW,
 };
 
@@ -107,6 +107,30 @@ pub fn focus(id: isize) -> Result<(), String> {
         let ok = SetForegroundWindow(h).as_bool();
         let _ = AttachThreadInput(mine, theirs, false);
         if ok { Ok(()) } else { Err("Windows didn't let Esky switch to that window".into()) }
+    }
+}
+
+/// Minimise the window in front if it belongs to the program at `exe`, or (Store apps, which
+/// have no .exe to match) if its title contains `name`. Returns whether it did.
+pub fn minimize_if_foreground(exe: Option<&str>, name: &str) -> bool {
+    unsafe {
+        let h = GetForegroundWindow();
+        if h.0.is_null() {
+            return false;
+        }
+        let pid = pid_of(h);
+        if pid == std::process::id() {
+            return false;
+        }
+        let ours = match exe {
+            Some(exe) => exe_of(pid).is_some_and(|p| p.eq_ignore_ascii_case(exe)),
+            None => {
+                let mut buf = vec![0u16; GetWindowTextLengthW(h) as usize + 1];
+                let n = GetWindowTextW(h, &mut buf) as usize;
+                !name.is_empty() && String::from_utf16_lossy(&buf[..n]).to_lowercase().contains(&name.to_lowercase())
+            }
+        };
+        ours && (ShowWindow(h, SW_MINIMIZE).as_bool() || IsIconic(h).as_bool())
     }
 }
 

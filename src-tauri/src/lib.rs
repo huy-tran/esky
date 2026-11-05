@@ -637,6 +637,15 @@ async fn window_focus(id: isize) -> Result<(), String> {
     blocking(move || switcher::focus(id)).await?
 }
 
+/// An app's hotkey, pressed while that app is in front: minimise it instead of launching it.
+#[tauri::command]
+async fn app_minimize_if_front(app: AppHandle, id: String, name: String) -> Result<bool, String> {
+    let Some(path) = app.state::<KnownApps>().0.lock().unwrap().get(&id).cloned() else {
+        return Ok(false);
+    };
+    blocking(move || switcher::minimize_if_foreground(path.as_deref(), &name)).await
+}
+
 #[tauri::command]
 async fn window_close(id: isize) -> Result<(), String> {
     blocking(move || switcher::close(id)).await?
@@ -957,6 +966,7 @@ pub fn run() {
             exe_icons,
             window_focus,
             window_close,
+            app_minimize_if_front,
             files_index,
             files_search,
             files_recent,

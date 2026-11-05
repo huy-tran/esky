@@ -30,6 +30,11 @@ pub fn focus(id: isize) -> Result<(), String> {
     util::hypr_dispatch(&["focuswindow", &util::addr_arg(id)])
 }
 
+/// Hotkeys on Linux are bound in Hyprland, so there is nothing to toggle from here.
+pub fn minimize_if_foreground(_exe: Option<&str>, _name: &str) -> bool {
+    false
+}
+
 pub fn close(id: isize) -> Result<(), String> {
     util::hypr_dispatch(&["closewindow", &util::addr_arg(id)])
 }
